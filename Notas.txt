@@ -1,39 +1,42 @@
 Block de notas (Base de datos para el proyecto de progra4 (ASONIPED DIGITAL - MySql))
 
+Primer paso: 
 CREATE DATABASE AsonipedDigitalTest CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; //Creacion de la base de datos
 
+Segundo paso: 
 Tabla Voluntarios Forms: 
+
 CREATE TABLE volunteers (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  first_name VARCHAR(100) NOT NULL,
-  last_name VARCHAR(100) NOT NULL,
-  email VARCHAR(150) NOT NULL,
+  first_name VARCHAR(255) NOT NULL,
+  last_name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
   phone VARCHAR(50),
   age VARCHAR(10),
   availability_days VARCHAR(255),
   availability_time_slots VARCHAR(255),
   interests TEXT,
-  skills VARCHAR(255),
+  skills TEXT,
   motivation TEXT,
   status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-  submission_date DATETIME DEFAULT CURRENT_TIMESTAMP
+  submission_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  volunteer_option_id INT,
+  FOREIGN KEY (volunteer_option_id) REFERENCES volunteer_options(id)
 );
 
-Estructura de volntarios Forms: 
-src/models/volunteer.model.ts (DB queries)
-src/controllers/volunteer.controller.ts (business logic)
-src/routes/volunteer.routes.ts (Express routes)
 
-ALTER TABLE volunteers ADD COLUMN volunteer_option_id INT;
--- Optionally, add a foreign key constraint:
--- ALTER TABLE volunteers ADD CONSTRAINT fk_volunteer_option FOREIGN KEY (volunteer_option_id) REFERENCES volunteer_options(id);
+Tercer paso: 
 
 Tabla Voluntarios Options: 
+
 CREATE TABLE volunteer_options (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
-  description TEXT,
-  imageUrl VARCHAR(512),
-  date VARCHAR(100),
-  location VARCHAR(255)
+  description TEXT NOT NULL,
+  imageUrl VARCHAR(255) NOT NULL,
+  date VARCHAR(50) NOT NULL,
+  location VARCHAR(255) NOT NULL
 );
+
+Si van a crear tablas agreguen las aqui asi todos tenemos las mismas tablas,
+la db es local es por eso que tienen que ser creadas y no se pueden compartir.

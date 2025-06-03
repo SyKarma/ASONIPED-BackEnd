@@ -1,4 +1,6 @@
 Block de notas (Base de datos para el proyecto de progra4 (ASONIPED DIGITAL - MySql))
+Si van a crear tablas agreguen las aqui asi todos tenemos las mismas tablas,
+la db es local es por eso que tienen que ser creadas y no se pueden compartir.
 
 Primer paso: 
 CREATE DATABASE AsonipedDigitalTest CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; //Creacion de la base de datos
@@ -38,5 +40,19 @@ CREATE TABLE volunteer_options (
   location VARCHAR(255) NOT NULL
 );
 
-Si van a crear tablas agreguen las aqui asi todos tenemos las mismas tablas,
-la db es local es por eso que tienen que ser creadas y no se pueden compartir.
+Cuarto paso: 
+
+Tabla Donaciones: 
+
+CREATE TABLE donations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(100) NOT NULL,
+  telefono VARCHAR(30) NOT NULL,
+  correo VARCHAR(100) NOT NULL,
+  tipo VARCHAR(50) NOT NULL,
+  metodo VARCHAR(50) NOT NULL,
+  monto VARCHAR(50) NOT NULL,
+  aceptar BOOLEAN NOT NULL,
+  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

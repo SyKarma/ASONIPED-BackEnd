@@ -8,7 +8,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { adminUser } from './constanst/adminUser'; 
 import { authenticateToken } from '../src/middleware/auth.middleware'; // Adjust path as needed
-
+import donationRoutes from './routes/donations/donation.routes';
 dotenv.config();
 
 const app = express();
@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
 
 app.use('/volunteers', volunteerRoutes);
 app.use('/volunteer-options', volunteerOptionRoutes);
-
+app.use('/donations', donationRoutes);
 // Secret key for JWT (store securely in env variables in real apps)
 const JWT_SECRET = 'your_jwt_secret_key';
 

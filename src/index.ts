@@ -1,9 +1,9 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import { db } from '../src/db';
-import volunteerRoutes from './routes/volunteer_forms.routes';
+import volunteerRoutes from './routes/volunteer/volunteer_forms.routes';
 import cors from 'cors'; 
-import volunteerOptionRoutes from './routes/volunteer_options.routes';
+import volunteerOptionRoutes from './routes/volunteer/volunteer_options.routes';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { adminUser } from './constanst/adminUser'; 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as VolunteerController from '../controllers/volunteer_forms.controller';
-import { authenticateAdmin } from '../middleware/auth.middleware'; 
+import * as VolunteerController from '../../controllers/volunteer/volunteer_forms.controller';
+import { authenticateAdmin } from '../../middleware/auth.middleware'; 
 
 const router = Router();
 

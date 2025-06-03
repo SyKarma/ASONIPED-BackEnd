@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import * as VolunteerOptionModel from '../models/volunteer_options.model';
+import * as VolunteerOptionModel from '../../models/volunteer/volunteer_options.model';
 
 // Get all volunteer options
 export const getVolunteerOptions = async (req: Request, res: Response): Promise<void> => {

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import * as VolunteerModel from '../models/volunteer_forms.model';
+import * as VolunteerModel from '../../models/volunteer/volunteer_forms.model';
 
 // Get all volunteers with pagination and filtering
 export const getVolunteers = async (req: Request, res: Response): Promise<void> => {

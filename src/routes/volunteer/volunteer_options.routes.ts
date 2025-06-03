@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import * as VolunteerOptionController from '../controllers/volunteer_options.controller';
-import { authenticateAdmin } from '../middleware/auth.middleware'; // protect routes
+import * as VolunteerOptionController from '../../controllers/volunteer/volunteer_options.controller';
+import { authenticateAdmin } from '../../middleware/auth.middleware'; // protect routes
 
 const router = Router();
 

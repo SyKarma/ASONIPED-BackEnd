@@ -6,9 +6,10 @@ import cors from 'cors';
 import volunteerOptionRoutes from './routes/volunteer/volunteer_options.routes';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { adminUser } from './constanst/adminUser'; 
 import { authenticateToken } from '../src/middleware/auth.middleware'; // Adjust path as needed
 import donationRoutes from './routes/donations/donation.routes';
+import eventsNewsRoutes from './routes/Events/eventsNews.routes';
+import attendanceRoutes from './routes/attendance/attendance.routes';
 dotenv.config();
 
 const app = express();
@@ -24,33 +25,30 @@ app.get('/', (req, res) => {
 app.use('/volunteers', volunteerRoutes);
 app.use('/volunteer-options', volunteerOptionRoutes);
 app.use('/donations', donationRoutes);
+app.use('/events-news', eventsNewsRoutes);
+app.use('/attendance', attendanceRoutes);
 // Secret key for JWT (store securely in env variables in real apps)
 const JWT_SECRET = 'your_jwt_secret_key';
 
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  console.log('Login attempt:', username, password);
-
-  if (username !== adminUser.username) {
-    console.log('Username mismatch');
+  const [rows] = await db.query('SELECT * FROM admins WHERE username = ?', [username]);
+  if (rows.length === 0) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
-
-  const isPasswordValid = await bcrypt.compare(password, adminUser.passwordHash);
-  console.log('Password valid:', isPasswordValid);
+  const admin = rows[0];
+  const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
   if (!isPasswordValid) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
-
-  // Generate JWT
   const token = jwt.sign(
-    { username: adminUser.username, role: 'admin' },
+    { username: admin.username, role: 'admin' },
     JWT_SECRET,
     { expiresIn: '1h' }
   );
-
   res.json({ token });
 });
+
 
 const adminRouter = express.Router();
 

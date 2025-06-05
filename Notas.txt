@@ -86,4 +86,30 @@ IMPORTANTE: Agregar tabla admin para inicio de sesion!
 
 
    INSERT INTO admins (username, password_hash)
-   VALUES ('David', '$2a$12$wHSyIT5HiBQGBYErEb7Ese9x/EjlB/bDhbqtNQANi3fvbbeFlntKi'); 
+   VALUES ('Dixon', '$2a$12$wHSyIT5HiBQGBYErEb7Ese9x/EjlB/bDhbqtNQANi3fvbbeFlntKi'); 
+
+   Sexto paso: 
+
+CREATE TABLE workshops (
+    id VARCHAR(50) PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    imageUrl VARCHAR(255) NOT NULL,
+    objectives TEXT NOT NULL,  -- Store as JSON string
+    materials TEXT NOT NULL,   -- Store as JSON string
+    learnText TEXT NOT NULL
+);
+
+Octavo paso: 
+
+CREATE TABLE workshop_enrollments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    fullName VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    phone VARCHAR(30) NOT NULL,
+    notes TEXT,
+    workshopId VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_workshop
+    FOREIGN KEY (workshopId) REFERENCES workshops(id)
+);

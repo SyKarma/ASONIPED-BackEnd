@@ -10,6 +10,9 @@ import { authenticateToken } from '../src/middleware/auth.middleware'; // Adjust
 import donationRoutes from './routes/donations/donation.routes';
 import eventsNewsRoutes from './routes/Events/eventsNews.routes';
 import attendanceRoutes from './routes/attendance/attendance.routes';
+import workshopEnrollmentRoutes from './routes/workshop/enrollment.routes';
+import enrollmentRoutes from './routes/workshop/enrollment.routes';
+import workshopRoutes from './routes/workshop/workshop.routes';
 dotenv.config();
 
 const app = express();
@@ -27,6 +30,9 @@ app.use('/volunteer-options', volunteerOptionRoutes);
 app.use('/donations', donationRoutes);
 app.use('/events-news', eventsNewsRoutes);
 app.use('/attendance', attendanceRoutes);
+app.use('/workshop-enrollments', workshopEnrollmentRoutes);
+app.use('/enrollments', enrollmentRoutes);
+app.use('/workshops', workshopRoutes);
 // Secret key for JWT (store securely in env variables in real apps)
 const JWT_SECRET = 'your_jwt_secret_key';
 

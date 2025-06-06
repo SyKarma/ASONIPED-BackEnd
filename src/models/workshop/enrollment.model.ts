@@ -44,8 +44,8 @@ export const EnrollmentModel = {
     return result;
   },
 
-  async delete(id: number) {
+async delete(id: number) {
     const [result] = await db.query('DELETE FROM workshop_enrollments WHERE id = ?', [id]);
-    return result;
-  }
+    return result;
+}
 };

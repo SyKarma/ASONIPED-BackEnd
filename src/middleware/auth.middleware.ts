@@ -4,7 +4,14 @@ import jwt from 'jsonwebtoken';
 // ADMIN_TOKEN=supersecrettoken
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'changeme';
 
-const JWT_SECRET = 'your_jwt_secret_key'; // Use the same secret as in your login route
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+
+export interface AuthRequest extends Request {
+  user?: {
+    username: string;
+    role?: string;
+  };
+}
 
 export const authenticateAdmin = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
@@ -20,21 +27,22 @@ export const authenticateAdmin = (req: Request, res: Response, next: NextFunctio
   next();
 };
 
-export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
+export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Expecting "Bearer <token>"
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
     res.status(401).json({ message: 'No token provided' });
-    return;
+    return Promise.resolve();
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      res.status(403).json({ message: 'Invalid token' });
-      return;
-    }
-    (req as any).user = user; // Attach user info to request
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { username: string; role?: string };
+    req.user = decoded;
     next();
-  });
-}
+    return Promise.resolve();
+  } catch (error) {
+    res.status(403).json({ message: 'Invalid token' });
+    return Promise.resolve();
+  }
+};

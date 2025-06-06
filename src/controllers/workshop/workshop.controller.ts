@@ -1,6 +1,84 @@
 import { Request, Response } from 'express';
 import { EnrollmentModel } from '../../models/workshop/enrollment.model';
+import { WorkshopModel, Workshop } from '../../models/workshop/workshop.model';
 
+// Workshop Controllers
+export const getAllWorkshops = async (req: Request, res: Response) => {
+  try {
+    const workshops = await WorkshopModel.getAll();
+    res.json(workshops);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching workshops', error });
+  }
+};
+
+export const getWorkshopById = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const workshop = await WorkshopModel.getById(id);
+    if (!workshop) {
+      return res.status(404).json({ message: 'Workshop not found' });
+    }
+    res.json(workshop);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching workshop', error });
+  }
+};
+
+export const createWorkshop = async (req: Request, res: Response) => {
+  const { title, description, imageUrl, objectives, materials, learnText } = req.body;
+  try {
+    const newWorkshop: Workshop = {
+      id: Date.now().toString(),
+      title,
+      description,
+      imageUrl,
+      objectives,
+      materials,
+      learnText
+    };
+    const createdWorkshop = await WorkshopModel.create(newWorkshop);
+    res.status(201).json(createdWorkshop);
+  } catch (error) {
+    res.status(500).json({ message: 'Error creating workshop', error });
+  }
+};
+
+export const updateWorkshop = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { title, description, imageUrl, objectives, materials, learnText } = req.body;
+  try {
+    const updatedWorkshop = await WorkshopModel.update(id, {
+      title,
+      description,
+      imageUrl,
+      objectives,
+      materials,
+      learnText
+    });
+    if (!updatedWorkshop) {
+      return res.status(404).json({ message: 'Workshop not found' });
+    }
+    res.json(updatedWorkshop);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating workshop', error });
+  }
+};
+
+export const deleteWorkshop = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const success = await WorkshopModel.delete(id);
+    if (!success) {
+      return res.status(404).json({ message: 'Workshop not found' });
+    }
+    res.json({ message: 'Workshop deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting workshop', error });
+  }
+};
+
+// Enrollment Controllers
 // Get all enrollments
 export const getAllEnrollments = async (req: Request, res: Response) => {
   try {
@@ -72,6 +150,6 @@ export const deleteEnrollment = async (req: Request, res: Response) => {
     }
     res.json({ message: 'Enrollment deleted' });
   } catch (error) {
-    res.status(500).json({ message: 'Error deleting enrollment', error });
-  }
+    res.status(500).json({ message: 'Error deleting enrollment', error });
+  }
 };

@@ -2,10 +2,23 @@ Block de notas (Base de datos para el proyecto de progra4 (ASONIPED DIGITAL - My
 Si van a crear tablas agreguen las aqui asi todos tenemos las mismas tablas,
 la db es local es por eso que tienen que ser creadas y no se pueden compartir.
 
++-------------------------------+
+| Tables_in_asonipeddigitaltest |
++-------------------------------+
+| admins                        |
+| attendance                    |
+| donations                     |
+| events_news                   |
+| volunteer_options             |
+| volunteers                    |
+| workshop_enrollments          |
+| workshops                     |
++-------------------------------+
+
 Tienen que seguir los pasos al pie de la letra!
 
 Primer paso: 
-CREATE DATABASE AsonipedDigitalTest CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; //Creacion de la base de datos
+CREATE DATABASE AsonipedDigitalTest CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; 
 
 Segundo paso: 
 Tabla Voluntarios Forms: 
@@ -69,26 +82,18 @@ CREATE TABLE events_news (
   imageUrl VARCHAR(500)
 );
 
-IMPORTANTE: Agregar tabla admin para inicio de sesion! 
 
-   CREATE TABLE admins (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     username VARCHAR(100) NOT NULL UNIQUE,
-     password_hash VARCHAR(255) NOT NULL
-   );
+Sexto paso:
 
-   para agregar un admin: username: admin password_hash: admin123
+CREATE TABLE attendance (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(255) NOT NULL,
+  cedula VARCHAR(50) NOT NULL,
+  tipo VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-   INSERT INTO admins (username, password_hash)
-   VALUES ('admin', '$2a$12$MY1WVfRIySZ6NoWb2/.C6ujNCcWE/hVDqFldIiouatdn0AAurhHBe'); 
-
-  Que es un hash? Es una contraseña codificada: https://bcrypt-generator.com/
-
-
-   INSERT INTO admins (username, password_hash)
-   VALUES ('Dixon', '$2a$12$wHSyIT5HiBQGBYErEb7Ese9x/EjlB/bDhbqtNQANi3fvbbeFlntKi'); 
-
-   Sexto paso: 
+Septimo paso: 
 
 CREATE TABLE workshops (
     id VARCHAR(50) PRIMARY KEY,
@@ -113,3 +118,32 @@ CREATE TABLE workshop_enrollments (
     CONSTRAINT fk_workshop
     FOREIGN KEY (workshopId) REFERENCES workshops(id)
 );
+
+
+IMPORTANTE: Agregar tabla admin para inicio de sesion! 
+
+   CREATE TABLE admins (
+     id INT AUTO_INCREMENT PRIMARY KEY,
+     username VARCHAR(100) NOT NULL UNIQUE,
+     password_hash VARCHAR(255) NOT NULL
+   );
+
+   para agregar un admin: username: admin password_hash: admin123
+
+   INSERT INTO admins (username, password_hash)
+   VALUES ('admin', '$2a$12$MY1WVfRIySZ6NoWb2/.C6ujNCcWE/hVDqFldIiouatdn0AAurhHBe'); 
+
+  Que es un hash? Es una contraseña codificada: https://bcrypt-generator.com/
+
+
+   INSERT INTO admins (username, password_hash)
+   VALUES ('Dixon', '$2a$12$wHSyIT5HiBQGBYErEb7Ese9x/EjlB/bDhbqtNQANi3fvbbeFlntKi'); 
+
+
+NOTA: en el archivo .env cambiar DB_PASSWORD="Su contraseña de Mysql" 
+
+Librerias usadas en el Backend: 
+
+npm install bcrypt cors dotenv express jsonwebtoken mysql2
+npm install --save-dev @types/bcrypt @types/cors @types/express @types/jsonwebtoken @types/node ts-node-dev typescript
+

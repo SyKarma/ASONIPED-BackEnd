@@ -54,7 +54,7 @@ export const WorkshopModel = {
     if (fields.length === 0) return null;
     values.push(id);
     const [result] = await db.query(
-      UPDATE workshops SET ${fields.join(', ')} WHERE id = ?,
+      `UPDATE workshops SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     if ((result as any).affectedRows === 0) return null;
@@ -63,6 +63,6 @@ export const WorkshopModel = {
 
   async delete(id: string) {
     const [result] = await db.query('DELETE FROM workshops WHERE id = ?', [id]);
-    return (result as any).affectedRows > 0;
-  },
+    return (result as any).affectedRows > 0;
+  },
 };

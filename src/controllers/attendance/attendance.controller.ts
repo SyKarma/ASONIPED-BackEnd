@@ -16,7 +16,7 @@ export const getAllAttendanceController = async (req: Request, res: Response) =>
 };
 
 // Create a new attendance record
-export const createAttendanceController = async (req: Request, res: Response) => {
+export const createAttendanceController = async (req: Request, res: Response): Promise<void> => {
   try {
     const { nombre, cedula, tipo } = req.body;
     if (!nombre || !cedula || !tipo) {

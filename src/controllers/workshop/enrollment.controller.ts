@@ -23,12 +23,13 @@ export const getEnrollmentsByWorkshop = async (req: Request, res: Response) => {
 };
 
 // Get a single enrollment by ID
-export const getEnrollmentById = async (req: Request, res: Response) => {
+export const getEnrollmentById = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   try {
     const enrollment = await EnrollmentModel.getById(Number(id));
     if (!enrollment) {
-      return res.status(404).json({ message: 'Enrollment not found' });
+      res.status(404).json({ message: 'Enrollment not found' });
+      return;
     }
     res.json(enrollment);
   } catch (error) {
@@ -37,7 +38,7 @@ export const getEnrollmentById = async (req: Request, res: Response) => {
 };
 
 // Create a new enrollment
-export const createEnrollment = async (req: Request, res: Response) => {
+export const createEnrollment = async (req: Request, res: Response): Promise<void> => {
   const { fullName, email, phone, notes, workshopId } = req.body;
   try {
     const newEnrollment = await EnrollmentModel.create({ fullName, email, phone, notes, workshopId });
@@ -48,13 +49,14 @@ export const createEnrollment = async (req: Request, res: Response) => {
 };
 
 // Update an enrollment
-export const updateEnrollment = async (req: Request, res: Response) => {
+export const updateEnrollment = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const { fullName, email, phone, notes, workshopId } = req.body;
   try {
     const result = await EnrollmentModel.update(Number(id), { fullName, email, phone, notes, workshopId });
     if ((result as any).affectedRows === 0) {
-      return res.status(404).json({ message: 'Enrollment not found' });
+      res.status(404).json({ message: 'Enrollment not found' });
+      return;
     }
     res.json({ id, fullName, email, phone, notes, workshopId });
   } catch (error) {
@@ -63,15 +65,16 @@ export const updateEnrollment = async (req: Request, res: Response) => {
 };
 
 // Delete an enrollment
-export const deleteEnrollment = async (req: Request, res: Response) => {
+export const deleteEnrollment = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   try {
     const result = await EnrollmentModel.delete(Number(id));
     if ((result as any).affectedRows === 0) {
-      return res.status(404).json({ message: 'Enrollment not found' });
+      res.status(404).json({ message: 'Enrollment not found' });
+      return;
     }
     res.json({ message: 'Enrollment deleted' });
   } catch (error) {
-    res.status(500).json({ message: 'Error deleting enrollment', error });
-  }
+    res.status(500).json({ message: 'Error deleting enrollment', error});
+  }
 };

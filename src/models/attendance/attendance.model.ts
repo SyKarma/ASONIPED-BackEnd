@@ -8,13 +8,13 @@ export interface Attendance {
   created_at?: Date;
 }
 
-// Get all attendance records
+// Conseguir todos los registros de asistencia
 export const getAllAttendance = async (): Promise<Attendance[]> => {
   const [rows] = await db.query('SELECT * FROM attendance ORDER BY created_at DESC');
   return rows as Attendance[];
 };
 
-// Create a new attendance record
+// Crear un nuevo registro de asistencia
 export const createAttendance = async (record: Omit<Attendance, 'id' | 'created_at'>): Promise<void> => {
   await db.query(
     'INSERT INTO attendance (nombre, cedula, tipo) VALUES (?, ?, ?)',

@@ -5,7 +5,8 @@ import {
   Attendance
 } from '../../models/attendance/attendance.model';
 
-// Get all attendance records
+// Conseguir todos los registros de asistencia
+// Este controlador obtiene todos los registros de asistencia de la base de datos
 export const getAllAttendanceController = async (req: Request, res: Response) => {
   try {
     const records = await getAllAttendance();
@@ -15,7 +16,7 @@ export const getAllAttendanceController = async (req: Request, res: Response) =>
   }
 };
 
-// Create a new attendance record
+// Creacion de un nuevo registro de asistencia
 export const createAttendanceController = async (req: Request, res: Response): Promise<void> => {
   try {
     const { nombre, cedula, tipo } = req.body;

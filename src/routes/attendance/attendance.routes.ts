@@ -1,5 +1,3 @@
-// src/routes/attendance/attendance.routes.ts
-
 import { Router } from 'express';
 import {
   getAllAttendanceController,
@@ -9,10 +7,10 @@ import { authenticateToken } from '../../middleware/auth.middleware';
 
 const router = Router();
 
-// GET all attendance records
+// Conseguir todos los registros de asistencia (público)
 router.get('/', getAllAttendanceController);
 
-// POST create a new attendance record (protected)
+// Crar un nuevo registro de asistencia (requiere autenticación)
 router.post('/', authenticateToken, createAttendanceController);
 
 export default router;

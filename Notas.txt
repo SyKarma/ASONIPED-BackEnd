@@ -147,3 +147,29 @@ Librerias usadas en el Backend:
 npm install bcrypt cors dotenv express jsonwebtoken mysql2
 npm install --save-dev @types/bcrypt @types/cors @types/express @types/jsonwebtoken @types/node ts-node-dev typescript
 
+
+Tablas listas para insertar: 
+
+INSERT INTO volunteers (first_name, last_name, email, phone, volunteer_option_id) 
+VALUES ('Juan', 'Pérez', 'juan@email.com', '88888888', 1);
+
+INSERT INTO volunteer_options (title, description, imageUrl, date, location) 
+VALUES ('Ayuda en Biblioteca', 'Apoyo en organización de libros', '/images/biblioteca.jpg', '2024-03-20', 'Nicoya');
+
+INSERT INTO volunteer_options (title, description, imageUrl, date, location) 
+VALUES ('Ayuda en Biblioteca', 'Apoyo en organización de libros', '/images/biblioteca.jpg', '2024-03-20', 'Nicoya');
+
+INSERT INTO donations (nombre, telefono, correo, tipo, metodo, monto, aceptar) 
+VALUES ('María López', '77777777', 'maria@email.com', 'Monetaria', 'Transferencia', '10000', true);
+
+INSERT INTO events_news (title, description, date, imageUrl) 
+VALUES ('Taller de Inclusión', 'Taller sobre inclusión social', '2024-03-25', '/images/taller.jpg');
+
+INSERT INTO attendance (nombre, cedula, tipo) 
+VALUES ('Carlos Rojas', '123456789', 'Taller');
+
+INSERT INTO workshops (id, title, description, imageUrl, objectives, materials, learnText) 
+VALUES ('w001', 'Taller Básico', 'Descripción del taller', '/images/taller.jpg', '["Objetivo 1"]', '["Material 1"]', 'Aprenderás lo básico');
+
+INSERT INTO workshop_enrollments (fullName, email, phone, workshopId) 
+VALUES ('Ana Martínez', 'ana@email.com', '66666666', 'w001');

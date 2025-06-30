@@ -54,16 +54,16 @@ app.post('/login', async (req, res): Promise<void> => {
   }
 });
 
-// Protected routes
+// Routes - some public, some protected
 app.use('/users', userRoutes);
-app.use('/volunteers', authenticateToken, volunteerRoutes);
-app.use('/volunteer-options', authenticateToken, volunteerOptionRoutes);
-app.use('/donations', authenticateToken, donationRoutes);
-app.use('/events-news', authenticateToken, eventsNewsRoutes);
-app.use('/attendance', authenticateToken, attendanceRoutes);
-app.use('/workshop-enrollments', authenticateToken, workshopEnrollmentRoutes);
-app.use('/enrollments', authenticateToken, enrollmentRoutes);
-app.use('/workshops', authenticateToken, workshopRoutes);
+app.use('/volunteers', volunteerRoutes); // Individual routes are protected in the route file
+app.use('/volunteer-options', volunteerOptionRoutes); // GET is public, others protected in route file
+app.use('/donations', donationRoutes); // Individual routes are protected in the route file
+app.use('/events-news', eventsNewsRoutes); // GET is public, others protected in route file
+app.use('/attendance', attendanceRoutes); // Individual routes are protected in the route file
+app.use('/workshop-enrollments', workshopEnrollmentRoutes); // Individual routes are protected in the route file
+app.use('/enrollments', enrollmentRoutes); // Individual routes are protected in the route file
+app.use('/workshops', workshopRoutes); // Individual routes are protected in the route file
 
 db.getConnection()
   .then(() => console.log('MySQL connection successful!'))

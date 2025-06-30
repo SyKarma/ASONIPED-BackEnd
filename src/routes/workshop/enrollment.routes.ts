@@ -7,25 +7,26 @@ import {
   updateEnrollment,
   deleteEnrollment
 } from '../../controllers/workshop/enrollment.controller';
+import { authenticateToken } from '../../middleware/auth.middleware';
 
 const router = Router();
 
-// Get all enrollments
-router.get('/', getAllEnrollments);
+// Get all enrollments (admin only)
+router.get('/', authenticateToken, getAllEnrollments);
 
-// Get enrollments for a specific workshop
-router.get('/workshop/:workshopId', getEnrollmentsByWorkshop);
+// Get enrollments for a specific workshop (admin only)
+router.get('/workshop/:workshopId', authenticateToken, getEnrollmentsByWorkshop);
 
-// Get a single enrollment by ID
-router.get('/:id', getEnrollmentById);
+// Get a single enrollment by ID (admin only)
+router.get('/:id', authenticateToken, getEnrollmentById);
 
-// Create a new enrollment
+// Create a new enrollment (public)
 router.post('/', createEnrollment);
 
-// Update an enrollment
-router.put('/:id', updateEnrollment);
+// Update an enrollment (admin only)
+router.put('/:id', authenticateToken, updateEnrollment);
 
-// Delete an enrollment
-router.delete('/:id', deleteEnrollment);
+// Delete an enrollment (admin only)
+router.delete('/:id', authenticateToken, deleteEnrollment);
 
 export default router;

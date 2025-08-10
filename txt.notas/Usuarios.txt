@@ -1,0 +1,49 @@
+-- Tabla principal de usuarios
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(100) NOT NULL UNIQUE,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  status ENUM('active', 'inactive') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tabla de roles de usuario
+CREATE TABLE user_roles (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) NOT NULL UNIQUE,
+  description TEXT
+);
+
+-- Insertar roles básicos
+INSERT INTO user_roles (name, description) VALUES
+('user', 'Usuario general del sistema'),
+('beneficiary', 'Beneficiario de ASONIPED'),
+('volunteer', 'Voluntario activo'),
+('donor', 'Donante registrado'),
+('workshop_participant', 'Participante de talleres'),
+('admin', 'Administrador del sistema');
+
+-- Tabla de relación usuarios-roles (un usuario puede tener múltiples roles)
+CREATE TABLE user_role_assignments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  role_id INT NOT NULL,
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (role_id) REFERENCES user_roles(id)
+);
+
+-- Tabla de perfiles de usuario (información adicional según rol)
+CREATE TABLE user_profiles (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  profile_type ENUM('beneficiary', 'volunteer', 'donor', 'workshop_participant') NOT NULL,
+  profile_data JSON,  -- Almacena datos específicos según el tipo de perfil
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);

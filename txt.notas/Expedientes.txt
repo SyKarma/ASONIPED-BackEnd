@@ -1,0 +1,313 @@
+-- Tabla principal de expedientes
+CREATE TABLE records (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_number VARCHAR(50) UNIQUE NOT NULL,
+  status ENUM('draft', 'pending', 'approved', 'rejected', 'active', 'inactive') DEFAULT 'draft',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_by INT,
+  FOREIGN KEY (created_by) REFERENCES admins(id)
+);
+
+-- Ficha de datos sobre persona
+CREATE TABLE personal_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  pcd_name VARCHAR(255) NOT NULL,
+  cedula VARCHAR(50) UNIQUE NOT NULL,
+  gender ENUM('male', 'female', 'other'),
+  birth_date DATE,
+  birth_place VARCHAR(255),
+  address TEXT,
+  province VARCHAR(100),
+  district VARCHAR(100),
+  mother_name VARCHAR(255),
+  mother_cedula VARCHAR(50),
+  father_name VARCHAR(255),
+  father_cedula VARCHAR(50),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- Ficha de datos de discapacidad
+CREATE TABLE disability_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  disability_type ENUM('fisica', 'visual', 'auditiva', 'psicosocial', 'cognitiva', 'intelectual', 'multiple'),
+  medical_diagnosis TEXT,
+  insurance_type ENUM('rnc', 'independiente', 'privado', 'otro'),
+  biomechanical_benefit ENUM('silla_ruedas', 'baston', 'andadera', 'audifono', 'baston_guia', 'otro'),
+  permanent_limitations JSON,
+  limitation_degree ENUM('leve', 'moderada', 'severa', 'no_se_sabe'),
+  disability_origin ENUM('nacimiento', 'accidente', 'enfermedad'),
+  disability_certificate ENUM('si', 'no', 'en_tramite'),
+  conapdis_registration ENUM('si', 'no', 'en_tramite'),
+  observations TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- Requisitos para inscripción
+CREATE TABLE registration_requirements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  medical_diagnosis_doc BOOLEAN DEFAULT FALSE,
+  birth_certificate_doc BOOLEAN DEFAULT FALSE,
+  family_cedulas_doc BOOLEAN DEFAULT FALSE,
+  passport_photo_doc BOOLEAN DEFAULT FALSE,
+  pension_certificate_doc BOOLEAN DEFAULT FALSE,
+  study_certificate_doc BOOLEAN DEFAULT FALSE,
+  bank_account_info VARCHAR(255),
+  affiliation_fee_paid BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- Boleta de matrícula
+CREATE TABLE enrollment_form (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  enrollment_date DATE,
+  applicant_full_name VARCHAR(255),
+  applicant_cedula VARCHAR(50),
+  applicant_birth_date DATE,
+  applicant_age INT,
+  nationality VARCHAR(100),
+  home_address TEXT,
+  medical_conditions TEXT,
+  blood_type VARCHAR(10),
+  mother_name VARCHAR(255),
+  mother_occupation VARCHAR(255),
+  father_name VARCHAR(255),
+  father_occupation VARCHAR(255),
+  emergency_phones TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- Ficha socioeconómica
+CREATE TABLE socioeconomic_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  full_name VARCHAR(255),
+  age INT,
+  birth_date DATE,
+  origin_place VARCHAR(255),
+  address TEXT,
+  phone VARCHAR(50),
+  family_nucleus JSON,
+  responsible_person JSON,
+  working_people JSON,
+  housing_type ENUM('casa_propia', 'alquilada', 'prestada'),
+  services JSON,
+  family_income ENUM('menos_200k', '200k_400k', '400k_600k', '600k_800k', '800k_1000k', '1000k_1300k', 'mas_1300k'),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- Tabla para documentos adjuntos
+CREATE TABLE record_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  document_type ENUM('medical_diagnosis', 'birth_certificate', 'cedula', 'photo', 'pension_certificate', 'study_certificate', 'other'),
+  file_path VARCHAR(500) NOT NULL,
+  file_name VARCHAR(255),
+  file_size INT,
+  original_name VARCHAR(255),
+  uploaded_by INT,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES admins(id)
+);
+
+-- Tabla para notas administrativas
+CREATE TABLE record_notes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  note TEXT NOT NULL,
+  type ENUM('note', 'activity', 'milestone') DEFAULT 'note',
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES admins(id)
+);
+
+-- Índices para búsquedas rápidas
+CREATE INDEX idx_records_status ON records(status);
+CREATE INDEX idx_records_created_at ON records(created_at);
+CREATE INDEX idx_records_number ON records(record_number);
+
+CREATE INDEX idx_personal_data_cedula ON personal_data(cedula);
+CREATE INDEX idx_personal_data_record_id ON personal_data(record_id);
+
+CREATE INDEX idx_disability_data_type ON disability_data(disability_type);
+CREATE INDEX idx_disability_data_record_id ON disability_data(record_id);
+
+CREATE INDEX idx_documents_record_id ON record_documents(record_id);
+CREATE INDEX idx_documents_type ON record_documents(document_type);
+
+CREATE INDEX idx_notes_record_id ON record_notes(record_id);
+CREATE INDEX idx_notes_created_at ON record_notes(created_at);
+
+
+-- Script completo para crear todas las tablas de expedientes
+-- Ejecutar en orden:
+
+-- 1. Tabla principal
+CREATE TABLE records (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_number VARCHAR(50) UNIQUE NOT NULL,
+  status ENUM('draft', 'pending', 'approved', 'rejected', 'active', 'inactive') DEFAULT 'draft',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_by INT,
+  FOREIGN KEY (created_by) REFERENCES admins(id)
+);
+
+-- 2. Datos personales
+CREATE TABLE personal_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  pcd_name VARCHAR(255) NOT NULL,
+  cedula VARCHAR(50) UNIQUE NOT NULL,
+  gender ENUM('male', 'female', 'other'),
+  birth_date DATE,
+  birth_place VARCHAR(255),
+  address TEXT,
+  province VARCHAR(100),
+  district VARCHAR(100),
+  mother_name VARCHAR(255),
+  mother_cedula VARCHAR(50),
+  father_name VARCHAR(255),
+  father_cedula VARCHAR(50),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- 3. Datos de discapacidad
+CREATE TABLE disability_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  disability_type ENUM('fisica', 'visual', 'auditiva', 'psicosocial', 'cognitiva', 'intelectual', 'multiple'),
+  medical_diagnosis TEXT,
+  insurance_type ENUM('rnc', 'independiente', 'privado', 'otro'),
+  biomechanical_benefit ENUM('silla_ruedas', 'baston', 'andadera', 'audifono', 'baston_guia', 'otro'),
+  permanent_limitations JSON,
+  limitation_degree ENUM('leve', 'moderada', 'severa', 'no_se_sabe'),
+  disability_origin ENUM('nacimiento', 'accidente', 'enfermedad'),
+  disability_certificate ENUM('si', 'no', 'en_tramite'),
+  conapdis_registration ENUM('si', 'no', 'en_tramite'),
+  observations TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- 4. Requisitos de inscripción
+CREATE TABLE registration_requirements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  medical_diagnosis_doc BOOLEAN DEFAULT FALSE,
+  birth_certificate_doc BOOLEAN DEFAULT FALSE,
+  family_cedulas_doc BOOLEAN DEFAULT FALSE,
+  passport_photo_doc BOOLEAN DEFAULT FALSE,
+  pension_certificate_doc BOOLEAN DEFAULT FALSE,
+  study_certificate_doc BOOLEAN DEFAULT FALSE,
+  bank_account_info VARCHAR(255),
+  affiliation_fee_paid BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- 5. Boleta de matrícula
+CREATE TABLE enrollment_form (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  enrollment_date DATE,
+  applicant_full_name VARCHAR(255),
+  applicant_cedula VARCHAR(50),
+  applicant_birth_date DATE,
+  applicant_age INT,
+  nationality VARCHAR(100),
+  home_address TEXT,
+  medical_conditions TEXT,
+  blood_type VARCHAR(10),
+  mother_name VARCHAR(255),
+  mother_occupation VARCHAR(255),
+  father_name VARCHAR(255),
+  father_occupation VARCHAR(255),
+  emergency_phones TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- 6. Ficha socioeconómica
+CREATE TABLE socioeconomic_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  full_name VARCHAR(255),
+  age INT,
+  birth_date DATE,
+  origin_place VARCHAR(255),
+  address TEXT,
+  phone VARCHAR(50),
+  family_nucleus JSON,
+  responsible_person JSON,
+  working_people JSON,
+  housing_type ENUM('casa_propia', 'alquilada', 'prestada'),
+  services JSON,
+  family_income ENUM('menos_200k', '200k_400k', '400k_600k', '600k_800k', '800k_1000k', '1000k_1300k', 'mas_1300k'),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);
+
+-- 7. Documentos adjuntos
+CREATE TABLE record_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  document_type ENUM('medical_diagnosis', 'birth_certificate', 'cedula', 'photo', 'pension_certificate', 'study_certificate', 'other'),
+  file_path VARCHAR(500) NOT NULL,
+  file_name VARCHAR(255),
+  file_size INT,
+  original_name VARCHAR(255),
+  uploaded_by INT,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES admins(id)
+);
+
+-- 8. Notas administrativas
+CREATE TABLE record_notes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  note TEXT NOT NULL,
+  type ENUM('note', 'activity', 'milestone') DEFAULT 'note',
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES admins(id)
+);
+
+-- 9. Índices para optimización
+CREATE INDEX idx_records_status ON records(status);
+CREATE INDEX idx_records_created_at ON records(created_at);
+CREATE INDEX idx_records_number ON records(record_number);
+CREATE INDEX idx_personal_data_cedula ON personal_data(cedula);
+CREATE INDEX idx_personal_data_record_id ON personal_data(record_id);
+CREATE INDEX idx_disability_data_type ON disability_data(disability_type);
+CREATE INDEX idx_disability_data_record_id ON disability_data(record_id);
+CREATE INDEX idx_documents_record_id ON record_documents(record_id);
+CREATE INDEX idx_documents_type ON record_documents(document_type);
+CREATE INDEX idx_notes_record_id ON record_notes(record_id);
+CREATE INDEX idx_notes_created_at ON record_notes(created_at);

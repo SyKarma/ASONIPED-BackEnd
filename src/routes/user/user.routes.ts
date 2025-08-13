@@ -14,6 +14,10 @@ router.put('/profile', authenticateToken, UserController.updateUserProfile);
 router.post('/change-password', authenticateToken, UserController.changePassword);
 
 // Rutas de administración (requieren rol admin)
+router.get('/', authenticateToken, UserController.getAllUsers);
+router.post('/', authenticateToken, UserController.createUser);
+router.put('/:id', authenticateToken, UserController.updateUser);
+router.delete('/:id', authenticateToken, UserController.deleteUser);
 router.post('/assign-role', authenticateToken, UserController.assignRole);
 router.post('/remove-role', authenticateToken, UserController.removeRole);
 

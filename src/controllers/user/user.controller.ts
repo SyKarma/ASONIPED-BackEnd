@@ -289,3 +289,122 @@ export const removeRole = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ error: 'Error removiendo rol' });
   }
 }; 
+
+// Obtener todos los usuarios (solo para admins)
+export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const users = await UserModel.getAllUsers();
+    res.json(users);
+  } catch (err) {
+    console.error('Error getting all users:', err);
+    res.status(500).json({ error: 'Error obteniendo usuarios' });
+  }
+};
+
+// Crear nuevo usuario (solo para admins)
+export const createUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
+      return;
+    }
+
+    // Verificar si el usuario ya existe
+    const existingUser = await UserModel.getUserByUsername(username);
+    if (existingUser) {
+      res.status(400).json({ error: 'El nombre de usuario ya existe' });
+      return;
+    }
+
+    // Encriptar contraseña
+    const passwordHash = await UserModel.hashPassword(password);
+
+    // Crear usuario
+    const userId = await UserModel.createUser({
+      username,
+      email: `${username}@asoniped.com`, // Email temporal
+      password_hash: passwordHash,
+      full_name: username, // Nombre temporal
+      status: 'active'
+    });
+
+    // Asignar rol admin
+    await UserModel.assignRoleToUser(userId, 'admin');
+
+    res.status(201).json({ message: 'Usuario creado exitosamente', id: userId });
+  } catch (err) {
+    console.error('Error creating user:', err);
+    res.status(500).json({ error: 'Error creando usuario' });
+  }
+};
+
+// Actualizar usuario (solo para admins)
+export const updateUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { username, password } = req.body;
+
+    if (!username) {
+      res.status(400).json({ error: 'Usuario es requerido' });
+      return;
+    }
+
+    // Verificar si el usuario existe
+    const existingUser = await UserModel.getUserById(Number(id));
+    if (!existingUser) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+
+    // Verificar si el nuevo username ya existe (si es diferente)
+    if (username !== existingUser.username) {
+      const userWithUsername = await UserModel.getUserByUsername(username);
+      if (userWithUsername) {
+        res.status(400).json({ error: 'El nombre de usuario ya existe' });
+        return;
+      }
+    }
+
+    // Preparar datos de actualización
+    const updateData: any = { username };
+    
+    // Si se proporciona nueva contraseña, encriptarla
+    if (password) {
+      updateData.password_hash = await UserModel.hashPassword(password);
+    }
+
+    await UserModel.updateUser(Number(id), updateData);
+
+    res.json({ message: 'Usuario actualizado exitosamente' });
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).json({ error: 'Error actualizando usuario' });
+  }
+};
+
+// Eliminar usuario (solo para admins)
+export const deleteUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Verificar si el usuario existe
+    const existingUser = await UserModel.getUserById(Number(id));
+    if (!existingUser) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+
+    // Eliminar asignaciones de roles primero
+    await UserModel.removeAllUserRoles(Number(id));
+    
+    // Eliminar usuario
+    await UserModel.deleteUser(Number(id));
+
+    res.json({ message: 'Usuario eliminado exitosamente' });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).json({ error: 'Error eliminando usuario' });
+  }
+}; 

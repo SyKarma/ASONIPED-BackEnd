@@ -213,3 +213,14 @@ export const updateUserProfile = async (userId: number, profileType: string, dat
     [JSON.stringify(data), userId, profileType]
   );
 }; 
+
+// Obtener todos los usuarios
+export const getAllUsers = async (): Promise<User[]> => {
+  const [rows] = await db.query('SELECT * FROM users ORDER BY created_at DESC');
+  return rows as User[];
+};
+
+// Eliminar todos los roles de un usuario
+export const removeAllUserRoles = async (userId: number): Promise<void> => {
+  await db.query('DELETE FROM user_role_assignments WHERE user_id = ?', [userId]);
+}; 

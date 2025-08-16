@@ -69,7 +69,7 @@ app.use('/workshop-enrollments', workshopEnrollmentRoutes); // Individual routes
 app.use('/enrollments', enrollmentRoutes); // Individual routes are protected in the route file
 app.use('/workshops', workshopRoutes);
 app.use('/records', recordRoutes);
-app.use('/records', recordDocumentRoutes); // Individual routes are protected in the route file
+// app.use('/records', recordDocumentRoutes); // Individual routes are protected in the route file - TEMPORARILY DISABLED
 
 db.getConnection()
   .then(() => console.log('MySQL connection successful!'))

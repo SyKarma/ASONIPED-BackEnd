@@ -1,35 +1,79 @@
 import { Request, Response } from 'express';
 import * as RecordModel from '../../models/records/record.model';
 import * as PersonalDataModel from '../../models/records/personal_data.model';
+import { db } from '../../db';
 
 // Crear nuevo expediente
 export const createRecord = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log('=== CREANDO EXPEDIENTE ===');
+    console.log('req.user:', (req as any).user);
+    console.log('req.body:', req.body);
+    console.log('req.headers:', req.headers);
+    
     const { personal_data, ...recordData } = req.body;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+    
+    console.log('User ID para crear expediente:', userId);
+    console.log('Datos personales:', personal_data);
+    console.log('Record data:', recordData);
+    
+    if (!userId) {
+      console.log('ERROR: No hay user ID');
+      res.status(401).json({ error: 'Usuario no autenticado' });
+      return;
+    }
     
     // Crear el expediente principal
+    console.log('Llamando a RecordModel.createRecord con:', {
+      ...recordData,
+      created_by: userId
+    });
+    
     const recordId = await RecordModel.createRecord({
       ...recordData,
-      created_by: (req as any).user?.id
+      status: 'pending', // Cambiar a pending cuando se envía
+      created_by: userId
     });
+    
+    console.log('Expediente creado con ID:', recordId);
     
     // Si se proporcionan datos personales, crearlos
     if (personal_data) {
-      await PersonalDataModel.createPersonalData({
+      console.log('Creando datos personales...');
+      console.log('Datos personales a crear:', {
         ...personal_data,
         record_id: recordId
       });
+      
+      try {
+        await PersonalDataModel.createPersonalData({
+          ...personal_data,
+          record_id: recordId
+        });
+        console.log('Datos personales creados exitosamente');
+      } catch (personalDataError) {
+        console.error('ERROR creando datos personales:', personalDataError);
+        console.error('Error stack:', (personalDataError as Error).stack);
+        throw personalDataError;
+      }
+    } else {
+      console.log('No se proporcionaron datos personales');
     }
     
+    console.log('=== EXPEDIENTE CREADO EXITOSAMENTE ===');
     res.status(201).json({ 
       message: 'Expediente creado exitosamente',
       record_id: recordId
     });
   } catch (err) {
     console.error('Error creating record:', err);
+    console.error('Error stack:', (err as Error).stack);
+    console.error('Error type:', typeof err);
+    console.error('Error constructor:', err?.constructor?.name);
     res.status(500).json({ 
       error: 'Error creando expediente',
-      details: err.message || err
+      details: (err as Error).message || String(err)
     });
   }
 };
@@ -58,9 +102,10 @@ export const getRecords = async (req: Request, res: Response): Promise<void> => 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const status = req.query.status as string | undefined;
+    const phase = req.query.phase as string | undefined;
     const search = req.query.search as string | undefined;
     
-    const { records, total } = await RecordModel.getRecords(page, limit, status, search);
+    const { records, total } = await RecordModel.getRecords(page, limit, status, phase, search);
     
     res.json({
       records,
@@ -109,6 +154,12 @@ export const updateRecord = async (req: Request, res: Response): Promise<void> =
 export const deleteRecord = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    
+    if (!id || isNaN(id)) {
+      res.status(400).json({ error: 'ID de expediente inválido' });
+      return;
+    }
+    
     await RecordModel.deleteRecord(id);
     
     res.json({ message: 'Expediente eliminado exitosamente' });
@@ -183,4 +234,263 @@ export const checkCedulaExists = async (req: Request, res: Response): Promise<vo
     console.error('Error checking cedula:', err);
     res.status(500).json({ error: 'Error verificando cédula' });
   }
-}; 
+};
+
+// Obtener expediente del usuario actual
+export const getMyRecord = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ error: 'Usuario no autenticado' });
+      return;
+    }
+    
+    const record = await RecordModel.getUserRecord(userId);
+    
+    if (!record) {
+      res.status(404).json({ error: 'No se encontró expediente para este usuario' });
+      return;
+    }
+    
+    res.json(record);
+  } catch (err) {
+    console.error('Error getting user record:', err);
+    res.status(500).json({ error: 'Error obteniendo expediente del usuario' });
+  }
+};
+
+// Aprobar fase 1
+export const approvePhase1 = async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log('=== CONTROLADOR: APROBANDO FASE 1 ===');
+    const id = parseInt(req.params.id);
+    const { comment } = req.body;
+    
+    console.log('ID:', id);
+    console.log('Comment:', comment);
+    console.log('User:', (req as any).user);
+    
+    await RecordModel.approvePhase1(id);
+    console.log('Fase 1 aprobada en el modelo');
+    
+    // Agregar comentario si se proporciona
+    if (comment) {
+      try {
+        await RecordModel.addNote(id, {
+          note: comment,
+          type: 'activity',
+          created_by: (req as any).user?.userId || (req as any).user?.id
+        });
+        console.log('Comentario agregado exitosamente');
+      } catch (noteError) {
+        console.error('Error agregando comentario:', noteError);
+        // No fallar la operación si el comentario falla
+      }
+    }
+    
+    res.json({ message: 'Fase 1 aprobada exitosamente' });
+  } catch (err) {
+    console.error('Error approving phase 1:', err);
+    res.status(500).json({ error: 'Error aprobando fase 1' });
+  }
+};
+
+// Rechazar fase 1
+export const rejectPhase1 = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { comment } = req.body;
+    
+    await RecordModel.rejectPhase1(id);
+    
+    // Agregar comentario si se proporciona
+    if (comment) {
+      await RecordModel.addNote(id, {
+        note: comment,
+        type: 'activity',
+        created_by: (req as any).user?.userId || (req as any).user?.id
+      });
+    }
+    
+    res.json({ message: 'Fase 1 rechazada exitosamente' });
+  } catch (err) {
+    console.error('Error rejecting phase 1:', err);
+    res.status(500).json({ error: 'Error rechazando fase 1' });
+  }
+};
+
+// Aprobar expediente completo
+export const approveRecord = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { comment } = req.body;
+    
+    await RecordModel.approveRecord(id);
+    
+    // Agregar comentario si se proporciona
+    if (comment) {
+      await RecordModel.addNote(id, {
+        note: comment,
+        type: 'milestone',
+        created_by: (req as any).user?.userId || (req as any).user?.id
+      });
+    }
+    
+    res.json({ message: 'Expediente aprobado exitosamente' });
+  } catch (err) {
+    console.error('Error approving record:', err);
+    res.status(500).json({ error: 'Error aprobando expediente' });
+  }
+};
+
+// Rechazar expediente completo
+export const rejectRecord = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { comment } = req.body;
+    
+    await RecordModel.rejectRecord(id);
+    
+    // Agregar comentario si se proporciona
+    if (comment) {
+      await RecordModel.addNote(id, {
+        note: comment,
+        type: 'activity',
+        created_by: (req as any).user?.userId || (req as any).user?.id
+      });
+    }
+    
+    res.json({ message: 'Expediente rechazado exitosamente' });
+  } catch (err) {
+    console.error('Error rejecting record:', err);
+    res.status(500).json({ error: 'Error rechazando expediente' });
+  }
+};
+
+// Verificar disponibilidad de cédula
+export const checkCedulaAvailability = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { cedula } = req.params;
+    const excludeRecordId = req.query.excludeRecordId ? parseInt(req.query.excludeRecordId as string) : undefined;
+    
+    const exists = await PersonalDataModel.checkCedulaExists(cedula, excludeRecordId);
+    
+    if (exists) {
+      res.status(409).json({ error: 'Cédula ya registrada' });
+      return;
+    }
+    
+    res.json({ available: true });
+  } catch (err) {
+    console.error('Error checking cedula availability:', err);
+    res.status(500).json({ error: 'Error verificando disponibilidad de cédula' });
+  }
+};
+
+// Actualizar comentario
+export const updateNote = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const noteId = parseInt(req.params.noteId);
+    const { note, type } = req.body;
+    
+    if (!note || note.trim() === '') {
+      res.status(400).json({ error: 'El comentario no puede estar vacío' });
+      return;
+    }
+    
+    await RecordModel.updateNote(noteId, { note: note.trim(), type });
+    
+    res.json({ message: 'Comentario actualizado exitosamente' });
+  } catch (err) {
+    console.error('Error updating note:', err);
+    res.status(500).json({ error: 'Error actualizando comentario' });
+  }
+};
+
+// Eliminar comentario
+export const deleteNote = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const noteId = parseInt(req.params.noteId);
+    
+    await RecordModel.deleteNote(noteId);
+    
+    res.json({ message: 'Comentario eliminado exitosamente' });
+  } catch (err) {
+    console.error('Error deleting note:', err);
+    res.status(500).json({ error: 'Error eliminando comentario' });
+  }
+};
+
+
+
+// Función temporal para verificar la estructura de la base de datos
+export const debugDatabase = async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log('=== DEBUG DATABASE ===');
+    
+    // Verificar tabla records
+    const [recordsStructure] = await db.query('DESCRIBE records');
+    console.log('Estructura de tabla records:', recordsStructure);
+    
+    // Verificar tabla personal_data
+    try {
+      const [personalDataStructure] = await db.query('DESCRIBE personal_data');
+      console.log('Estructura de tabla personal_data:', personalDataStructure);
+      
+      // Verificar si hay registros en personal_data
+      const [personalDataCount] = await db.query('SELECT COUNT(*) as count FROM personal_data');
+      console.log('Cantidad de registros en personal_data:', personalDataCount);
+      
+      res.json({ 
+        message: 'Debug info logged to console',
+        recordsStructure,
+        personalDataStructure,
+        personalDataCount,
+        personalDataExists: true
+      });
+    } catch (personalDataError) {
+      console.log('ERROR: Tabla personal_data no existe:', (personalDataError as Error).message);
+      
+      // Verificar si hay registros en records
+      const [recordsCount] = await db.query('SELECT COUNT(*) as count FROM records');
+      console.log('Cantidad de registros en records:', recordsCount);
+      
+      res.json({ 
+        message: 'Debug info logged to console',
+        recordsStructure,
+        recordsCount,
+        personalDataExists: false,
+        personalDataError: (personalDataError as Error).message
+      });
+    }
+  } catch (err) {
+    console.error('Error en debugDatabase:', err);
+    res.status(500).json({ error: 'Error obteniendo debug info', details: (err as Error).message || err });
+  }
+};
+
+// Función simple para verificar si personal_data existe
+export const checkPersonalDataTable = async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log('=== CHECKING PERSONAL_DATA TABLE ===');
+    
+    const [result] = await db.query('SHOW TABLES LIKE "personal_data"');
+    const exists = (result as any[]).length > 0;
+    
+    console.log('Tabla personal_data existe:', exists);
+    
+    if (exists) {
+      const [structure] = await db.query('DESCRIBE personal_data');
+      console.log('Estructura de personal_data:', structure);
+      res.json({ exists: true, structure });
+    } else {
+      res.json({ exists: false, message: 'Tabla personal_data no existe' });
+    }
+  } catch (err) {
+    console.error('Error checking personal_data table:', err);
+    res.status(500).json({ error: 'Error verificando tabla', details: (err as Error).message });
+  }
+};
+
+ 

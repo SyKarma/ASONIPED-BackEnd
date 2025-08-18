@@ -475,4 +475,279 @@ export const getRecordStats = async (): Promise<any> => {
     phase4: phase4Rows[0].count,
     completed: completedRows[0].count,
   };
+};
+
+// ===== FUNCIONES PARA FASE 3 =====
+
+// Helper function para limpiar valores
+const cleanValue = (value: any): any => {
+  if (value === 'null' || value === null || value === undefined) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0 ? JSON.stringify(value) : null;
+  }
+  return value;
+};
+
+// Crear o actualizar datos de discapacidad
+export const createOrUpdateDisabilityData = async (recordId: number, disabilityData: any): Promise<void> => {
+  try {
+    console.log('=== CREANDO/ACTUALIZANDO DATOS DE DISCAPACIDAD ===');
+    console.log('Record ID:', recordId);
+    console.log('Disability data:', disabilityData);
+    
+    // Verificar si ya existen datos de discapacidad
+    const [existingRows] = await db.query(
+      'SELECT id FROM disability_data WHERE record_id = ?',
+      [recordId]
+    ) as [any[], any];
+    
+    if (existingRows.length > 0) {
+      // Actualizar datos existentes
+      await db.query(
+        `UPDATE disability_data SET 
+         disability_type = ?, medical_diagnosis = ?, insurance_type = ?, 
+         biomechanical_benefit = ?, permanent_limitations = ?, limitation_degree = ?,
+         disability_origin = ?, disability_certificate = ?, conapdis_registration = ?,
+         observations = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE record_id = ?`,
+        [
+          cleanValue(disabilityData.disability_type),
+          cleanValue(disabilityData.medical_diagnosis),
+          cleanValue(disabilityData.insurance_type),
+          cleanValue(disabilityData.biomechanical_benefit),
+          cleanValue(disabilityData.permanent_limitations),
+          cleanValue(disabilityData.limitation_degree),
+          cleanValue(disabilityData.disability_origin),
+          cleanValue(disabilityData.disability_certificate),
+          cleanValue(disabilityData.conapdis_registration),
+          cleanValue(disabilityData.observations),
+          recordId
+        ]
+      );
+      console.log('Datos de discapacidad actualizados');
+    } else {
+      // Crear nuevos datos
+      await db.query(
+        `INSERT INTO disability_data 
+         (record_id, disability_type, medical_diagnosis, insurance_type, biomechanical_benefit,
+          permanent_limitations, limitation_degree, disability_origin, disability_certificate,
+          conapdis_registration, observations)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          recordId,
+          cleanValue(disabilityData.disability_type),
+          cleanValue(disabilityData.medical_diagnosis),
+          cleanValue(disabilityData.insurance_type),
+          cleanValue(disabilityData.biomechanical_benefit),
+          cleanValue(disabilityData.permanent_limitations),
+          cleanValue(disabilityData.limitation_degree),
+          cleanValue(disabilityData.disability_origin),
+          cleanValue(disabilityData.disability_certificate),
+          cleanValue(disabilityData.conapdis_registration),
+          cleanValue(disabilityData.observations)
+        ]
+      );
+      console.log('Datos de discapacidad creados');
+    }
+  } catch (err) {
+    console.error('Error en createOrUpdateDisabilityData:', err);
+    throw err;
+  }
+};
+
+// Crear o actualizar requisitos de inscripción
+export const createOrUpdateRegistrationRequirements = async (recordId: number, requirements: any): Promise<void> => {
+  try {
+    console.log('=== CREANDO/ACTUALIZANDO REQUISITOS DE INSCRIPCIÓN ===');
+    console.log('Record ID:', recordId);
+    console.log('Requirements:', requirements);
+    
+    // Verificar si ya existen requisitos
+    const [existingRows] = await db.query(
+      'SELECT id FROM registration_requirements WHERE record_id = ?',
+      [recordId]
+    ) as [any[], any];
+    
+    if (existingRows.length > 0) {
+      // Actualizar requisitos existentes
+      await db.query(
+        `UPDATE registration_requirements SET 
+         medical_diagnosis_doc = ?, birth_certificate_doc = ?, family_cedulas_doc = ?, 
+         passport_photo_doc = ?, pension_certificate_doc = ?, study_certificate_doc = ?, 
+         bank_account_info = ?, affiliation_fee_paid = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE record_id = ?`,
+        [
+          cleanValue(requirements.medical_diagnosis_doc),
+          cleanValue(requirements.birth_certificate_doc),
+          cleanValue(requirements.family_cedulas_doc),
+          cleanValue(requirements.passport_photo_doc),
+          cleanValue(requirements.pension_certificate_doc),
+          cleanValue(requirements.study_certificate_doc),
+          cleanValue(requirements.bank_account_info),
+          cleanValue(requirements.affiliation_fee_paid),
+          recordId
+        ]
+      );
+      console.log('Requisitos de inscripción actualizados');
+    } else {
+      // Crear nuevos requisitos
+      await db.query(
+        `INSERT INTO registration_requirements 
+         (record_id, medical_diagnosis_doc, birth_certificate_doc, family_cedulas_doc, 
+          passport_photo_doc, pension_certificate_doc, study_certificate_doc,
+          bank_account_info, affiliation_fee_paid)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          recordId,
+          cleanValue(requirements.medical_diagnosis_doc),
+          cleanValue(requirements.birth_certificate_doc),
+          cleanValue(requirements.family_cedulas_doc),
+          cleanValue(requirements.passport_photo_doc),
+          cleanValue(requirements.pension_certificate_doc),
+          cleanValue(requirements.study_certificate_doc),
+          cleanValue(requirements.bank_account_info),
+          cleanValue(requirements.affiliation_fee_paid)
+        ]
+      );
+      console.log('Requisitos de inscripción creados');
+    }
+  } catch (err) {
+    console.error('Error en createOrUpdateRegistrationRequirements:', err);
+    throw err;
+  }
+};
+
+// Crear o actualizar boleta de matrícula
+export const createOrUpdateEnrollmentForm = async (recordId: number, enrollmentData: any): Promise<void> => {
+  try {
+    console.log('=== CREANDO/ACTUALIZANDO BOLETA DE MATRÍCULA ===');
+    console.log('Record ID:', recordId);
+    console.log('Enrollment data:', enrollmentData);
+    
+    // Verificar si ya existe boleta
+    const [existingRows] = await db.query(
+      'SELECT id FROM enrollment_form WHERE record_id = ?',
+      [recordId]
+    ) as [any[], any];
+    
+    if (existingRows.length > 0) {
+      // Actualizar boleta existente
+      await db.query(
+        `UPDATE enrollment_form SET 
+         enrollment_date = ?, program_type = ?, special_needs = ?, 
+         emergency_contact = ?, emergency_phone = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE record_id = ?`,
+        [
+          cleanValue(enrollmentData.enrollment_date),
+          cleanValue(enrollmentData.program_type),
+          cleanValue(enrollmentData.special_needs),
+          cleanValue(enrollmentData.emergency_contact),
+          cleanValue(enrollmentData.emergency_phone),
+          recordId
+        ]
+      );
+      console.log('Boleta de matrícula actualizada');
+    } else {
+      // Crear nueva boleta
+      await db.query(
+        `INSERT INTO enrollment_form 
+         (record_id, enrollment_date, program_type, special_needs, emergency_contact, emergency_phone)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          recordId,
+          cleanValue(enrollmentData.enrollment_date),
+          cleanValue(enrollmentData.program_type),
+          cleanValue(enrollmentData.special_needs),
+          cleanValue(enrollmentData.emergency_contact),
+          cleanValue(enrollmentData.emergency_phone)
+        ]
+      );
+      console.log('Boleta de matrícula creada');
+    }
+  } catch (err) {
+    console.error('Error en createOrUpdateEnrollmentForm:', err);
+    throw err;
+  }
+};
+
+// Crear o actualizar ficha socioeconómica
+export const createOrUpdateSocioeconomicData = async (recordId: number, socioeconomicData: any): Promise<void> => {
+  try {
+    console.log('=== CREANDO/ACTUALIZANDO FICHA SOCIOECONÓMICA ===');
+    console.log('Record ID:', recordId);
+    console.log('Socioeconomic data:', socioeconomicData);
+    
+    // Verificar si ya existe ficha
+    const [existingRows] = await db.query(
+      'SELECT id FROM socioeconomic_data WHERE record_id = ?',
+      [recordId]
+    ) as [any[], any];
+    
+    if (existingRows.length > 0) {
+      // Actualizar ficha existente
+      await db.query(
+        `UPDATE socioeconomic_data SET 
+         housing_type = ?, services = ?, family_income = ?, 
+         working_people = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE record_id = ?`,
+        [
+          cleanValue(socioeconomicData.housing_type),
+          cleanValue(socioeconomicData.available_services),
+          cleanValue(socioeconomicData.family_income),
+          cleanValue(socioeconomicData.working_family_members),
+          recordId
+        ]
+      );
+      console.log('Ficha socioeconómica actualizada');
+    } else {
+      // Crear nueva ficha
+      await db.query(
+        `INSERT INTO socioeconomic_data 
+         (record_id, housing_type, services, family_income, working_people)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          recordId,
+          cleanValue(socioeconomicData.housing_type),
+          cleanValue(socioeconomicData.available_services),
+          cleanValue(socioeconomicData.family_income),
+          cleanValue(socioeconomicData.working_family_members)
+        ]
+      );
+      console.log('Ficha socioeconómica creada');
+    }
+  } catch (err) {
+    console.error('Error en createOrUpdateSocioeconomicData:', err);
+    throw err;
+  }
+};
+
+// Crear documento
+export const createDocument = async (recordId: number, documentData: any): Promise<void> => {
+  try {
+    console.log('=== CREANDO DOCUMENTO ===');
+    console.log('Record ID:', recordId);
+    console.log('Document data:', documentData);
+    
+    await db.query(
+      `INSERT INTO record_documents 
+       (record_id, document_type, file_path, file_name, file_size, original_name, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        recordId,
+        cleanValue(documentData.document_type),
+        cleanValue(documentData.file_path),
+        cleanValue(documentData.file_name),
+        cleanValue(documentData.file_size),
+        cleanValue(documentData.original_name),
+        cleanValue(documentData.uploaded_by)
+      ]
+    );
+    
+    console.log('Documento creado exitosamente');
+  } catch (err) {
+    console.error('Error en createDocument:', err);
+    throw err;
+  }
 }; 

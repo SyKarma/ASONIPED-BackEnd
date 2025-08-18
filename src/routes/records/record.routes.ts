@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { uploadRecordDocuments, handleUploadError } from '../../middleware/upload.middleware';
 import * as RecordController from '../../controllers/records/record.controller';
 
 const router = express.Router();
@@ -28,7 +29,7 @@ router.get('/', authenticateToken, RecordController.getRecords); // Listar exped
 // Rutas para expedientes específicos (con parámetros)
 router.get('/:id', authenticateToken, RecordController.getRecordById); // Obtener expediente
 router.put('/:id', authenticateToken, RecordController.updateRecord); // Actualizar expediente
-router.put('/:id/complete', authenticateToken, RecordController.updateRecord); // Completar expediente
+router.put('/:id/complete', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.completeRecord); // Completar expediente
 router.delete('/:id', authenticateToken, RecordController.deleteRecord); // Eliminar expediente
 router.patch('/:id/status', authenticateToken, RecordController.updateRecordStatus); // Cambiar estado
 

@@ -150,6 +150,125 @@ export const updateRecord = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Completar expediente (Fase 3)
+export const completeRecord = async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log('=== COMPLETANDO EXPEDIENTE ===');
+    const id = parseInt(req.params.id);
+    
+    if (!id || isNaN(id)) {
+      res.status(400).json({ error: 'ID de expediente inválido' });
+      return;
+    }
+    
+    console.log('Record ID:', id);
+    console.log('Request body:', req.body);
+    console.log('Files:', req.files);
+    
+    // Verificar que el expediente existe y está en fase 2
+    const existingRecord = await RecordModel.getRecordById(id);
+    if (!existingRecord) {
+      res.status(404).json({ error: 'Expediente no encontrado' });
+      return;
+    }
+    
+    if (existingRecord.phase !== 'phase2') {
+      res.status(400).json({ error: 'El expediente debe estar en Fase 2 para ser completado' });
+      return;
+    }
+    
+    // Procesar datos del formulario
+    const formData = req.body.data ? JSON.parse(req.body.data) : req.body;
+    console.log('Parsed form data:', formData);
+    
+    const {
+      disability_information,
+      socioeconomic_information,
+      documentation_requirements
+    } = formData;
+    
+    // Actualizar expediente a fase 3
+    await RecordModel.updateRecord(id, {
+      phase: 'phase3',
+      status: 'pending'
+    });
+    
+    // Crear/actualizar información de discapacidad
+    if (disability_information) {
+      await RecordModel.createOrUpdateDisabilityData(id, disability_information);
+    }
+    
+    // Crear/actualizar requisitos de documentación
+    if (documentation_requirements) {
+      await RecordModel.createOrUpdateRegistrationRequirements(id, documentation_requirements);
+    }
+    
+    // Crear/actualizar información socioeconómica
+    if (socioeconomic_information) {
+      await RecordModel.createOrUpdateSocioeconomicData(id, socioeconomic_information);
+    }
+    
+    // Procesar documentos si existen
+    if (req.files && Array.isArray(req.files)) {
+      console.log('Procesando archivos subidos:', req.files.length);
+      for (const file of req.files) {
+        console.log('Procesando archivo:', file.originalname);
+        // Verificar si el usuario es admin antes de crear el documento
+        const userId = (req as any).user?.userId || (req as any).user?.id;
+        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
+        
+        if (adminRows.length > 0) {
+          await RecordModel.createDocument(id, {
+            document_type: file.fieldname || 'other',
+            file_path: file.path || '',
+            file_name: file.filename || '',
+            file_size: file.size || 0,
+            original_name: file.originalname || '',
+            uploaded_by: userId
+          });
+        } else {
+          console.log('Usuario no es admin, omitiendo documento:', file.originalname);
+        }
+      }
+    } else {
+      console.log('No se subieron archivos');
+    }
+    
+    // Agregar nota de completación (solo si el usuario es admin)
+    try {
+      const userId = (req as any).user?.userId || (req as any).user?.id;
+      // Verificar si el usuario existe en la tabla admins
+      const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
+      
+      if (adminRows.length > 0) {
+        await RecordModel.addNote(id, {
+          note: 'Expediente completado - Fase 3',
+          type: 'milestone',
+          created_by: userId
+        });
+        console.log('Nota de completación agregada exitosamente');
+      } else {
+        console.log('Usuario no es admin, omitiendo nota de completación');
+      }
+    } catch (noteError) {
+      console.error('Error agregando nota de completación:', noteError);
+      // No fallar la operación si la nota falla
+    }
+    
+    console.log('=== EXPEDIENTE COMPLETADO EXITOSAMENTE ===');
+    res.json({ 
+      message: 'Expediente completado exitosamente',
+      record_id: id
+    });
+  } catch (err) {
+    console.error('Error completing record:', err);
+    res.status(500).json({ 
+      error: 'Error completando expediente',
+      details: (err as Error).message || String(err)
+    });
+  }
+};
+
 // Eliminar expediente
 export const deleteRecord = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -274,15 +393,23 @@ export const approvePhase1 = async (req: Request, res: Response): Promise<void> 
     await RecordModel.approvePhase1(id);
     console.log('Fase 1 aprobada en el modelo');
     
-    // Agregar comentario si se proporciona
+    // Agregar comentario si se proporciona (solo si el usuario es admin)
     if (comment) {
       try {
-        await RecordModel.addNote(id, {
-          note: comment,
-          type: 'activity',
-          created_by: (req as any).user?.userId || (req as any).user?.id
-        });
-        console.log('Comentario agregado exitosamente');
+        const userId = (req as any).user?.userId || (req as any).user?.id;
+        // Verificar si el usuario existe en la tabla admins
+        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
+        
+        if (adminRows.length > 0) {
+          await RecordModel.addNote(id, {
+            note: comment,
+            type: 'activity',
+            created_by: userId
+          });
+          console.log('Comentario agregado exitosamente');
+        } else {
+          console.log('Usuario no es admin, omitiendo comentario');
+        }
       } catch (noteError) {
         console.error('Error agregando comentario:', noteError);
         // No fallar la operación si el comentario falla
@@ -304,13 +431,27 @@ export const rejectPhase1 = async (req: Request, res: Response): Promise<void> =
     
     await RecordModel.rejectPhase1(id);
     
-    // Agregar comentario si se proporciona
+    // Agregar comentario si se proporciona (solo si el usuario es admin)
     if (comment) {
-      await RecordModel.addNote(id, {
-        note: comment,
-        type: 'activity',
-        created_by: (req as any).user?.userId || (req as any).user?.id
-      });
+      try {
+        const userId = (req as any).user?.userId || (req as any).user?.id;
+        // Verificar si el usuario existe en la tabla admins
+        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
+        
+        if (adminRows.length > 0) {
+          await RecordModel.addNote(id, {
+            note: comment,
+            type: 'activity',
+            created_by: userId
+          });
+          console.log('Comentario de rechazo agregado exitosamente');
+        } else {
+          console.log('Usuario no es admin, omitiendo comentario de rechazo');
+        }
+      } catch (noteError) {
+        console.error('Error agregando comentario de rechazo:', noteError);
+        // No fallar la operación si el comentario falla
+      }
     }
     
     res.json({ message: 'Fase 1 rechazada exitosamente' });
@@ -328,13 +469,27 @@ export const approveRecord = async (req: Request, res: Response): Promise<void> 
     
     await RecordModel.approveRecord(id);
     
-    // Agregar comentario si se proporciona
+    // Agregar comentario si se proporciona (solo si el usuario es admin)
     if (comment) {
-      await RecordModel.addNote(id, {
-        note: comment,
-        type: 'milestone',
-        created_by: (req as any).user?.userId || (req as any).user?.id
-      });
+      try {
+        const userId = (req as any).user?.userId || (req as any).user?.id;
+        // Verificar si el usuario existe en la tabla admins
+        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
+        
+        if (adminRows.length > 0) {
+          await RecordModel.addNote(id, {
+            note: comment,
+            type: 'milestone',
+            created_by: userId
+          });
+          console.log('Comentario de aprobación agregado exitosamente');
+        } else {
+          console.log('Usuario no es admin, omitiendo comentario de aprobación');
+        }
+      } catch (noteError) {
+        console.error('Error agregando comentario de aprobación:', noteError);
+        // No fallar la operación si el comentario falla
+      }
     }
     
     res.json({ message: 'Expediente aprobado exitosamente' });
@@ -352,13 +507,27 @@ export const rejectRecord = async (req: Request, res: Response): Promise<void> =
     
     await RecordModel.rejectRecord(id);
     
-    // Agregar comentario si se proporciona
+    // Agregar comentario si se proporciona (solo si el usuario es admin)
     if (comment) {
-      await RecordModel.addNote(id, {
-        note: comment,
-        type: 'activity',
-        created_by: (req as any).user?.userId || (req as any).user?.id
-      });
+      try {
+        const userId = (req as any).user?.userId || (req as any).user?.id;
+        // Verificar si el usuario existe en la tabla admins
+        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
+        
+        if (adminRows.length > 0) {
+          await RecordModel.addNote(id, {
+            note: comment,
+            type: 'activity',
+            created_by: userId
+          });
+          console.log('Comentario de rechazo agregado exitosamente');
+        } else {
+          console.log('Usuario no es admin, omitiendo comentario de rechazo');
+        }
+      } catch (noteError) {
+        console.error('Error agregando comentario de rechazo:', noteError);
+        // No fallar la operación si el comentario falla
+      }
     }
     
     res.json({ message: 'Expediente rechazado exitosamente' });

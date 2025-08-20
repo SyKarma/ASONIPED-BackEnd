@@ -1,16 +1,15 @@
+// File: BackEnd/src/models/donations/donation.model.ts
 import { db } from '../../db';
 
 export interface Donation {
   id?: number;
   nombre: string;
-  telefono: string;
   correo: string;
-  tipo: string;
-  metodo: string;
-  monto: string;
-  aceptar: boolean;
-  status?: 'pending' | 'approved' | 'rejected';
-  created_at?: Date;
+  telefono: string;
+  asunto: string;
+  mensaje: string;
+  aceptacion_privacidad: boolean;
+  aceptacion_comunicacion: boolean;
 }
 
 // Get all donations
@@ -29,23 +28,19 @@ export const getDonationById = async (id: number): Promise<Donation | null> => {
 // Create a new donation
 export const createDonation = async (donation: Donation): Promise<void> => {
   await db.query(
-    `INSERT INTO donations (nombre, telefono, correo, tipo, metodo, monto, aceptar, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+    `INSERT INTO donations 
+      (nombre, correo, telefono, asunto, mensaje, aceptacion_privacidad, aceptacion_comunicacion) 
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       donation.nombre,
-      donation.telefono,
       donation.correo,
-      donation.tipo,
-      donation.metodo,
-      donation.monto,
-      donation.aceptar,
-      donation.status || 'pending',
+      donation.telefono,
+      donation.asunto,
+      donation.mensaje,
+      donation.aceptacion_privacidad,
+      donation.aceptacion_comunicacion,
     ]
   );
-};
-
-// Update donation status
-export const updateDonationStatus = async (id: number, status: 'pending' | 'approved' | 'rejected'): Promise<void> => {
-  await db.query('UPDATE donations SET status = ? WHERE id = ?', [status, id]);
 };
 
 // Delete a donation

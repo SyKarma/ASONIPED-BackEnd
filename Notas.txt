@@ -61,16 +61,15 @@ Tabla Donaciones:
 
 CREATE TABLE donations (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  nombre VARCHAR(100) NOT NULL,
-  telefono VARCHAR(30) NOT NULL,
-  correo VARCHAR(100) NOT NULL,
-  tipo VARCHAR(50) NOT NULL,
-  metodo VARCHAR(50) NOT NULL,
-  monto VARCHAR(50) NOT NULL,
-  aceptar BOOLEAN NOT NULL,
-  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  nombre VARCHAR(20) NOT NULL,
+  correo VARCHAR(30) NOT NULL,
+  telefono VARCHAR(9) NOT NULL, -- formato "8888-8888"
+  asunto VARCHAR(255) NOT NULL,
+  mensaje TEXT NOT NULL,
+  aceptacion_privacidad BOOLEAN NOT NULL,
+  aceptacion_comunicacion BOOLEAN NOT NULL
 );
+
 
 Quinto paso: 
 

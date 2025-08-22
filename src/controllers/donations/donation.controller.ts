@@ -53,8 +53,8 @@ export const addDonation = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 // condicion del asunto
-    if (!asunto || asunto.trim().length < 50) {
-      res.status(400).json({ error: 'El asunto debe tener al menos 50 caracteres' });
+    if (!asunto || asunto.trim().length < 10) {
+      res.status(400).json({ error: 'El asunto debe tener al menos 10 caracteres' });
       return;
     }
 //condicion del mensaje

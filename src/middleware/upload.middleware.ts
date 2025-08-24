@@ -59,8 +59,8 @@ const upload = multer({
   }
 });
 
-// Middleware para upload de documentos de expediente
-export const uploadRecordDocuments = upload.array('documents', 10);
+// Middleware para upload de documentos de expediente - acepta cualquier campo
+export const uploadRecordDocuments = upload.any();
 
 // Middleware para upload de un solo documento
 export const uploadSingleDocument = upload.single('document');

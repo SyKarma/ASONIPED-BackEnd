@@ -97,6 +97,77 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       };
     }
     
+    // Obtener datos de discapacidad
+    let disabilityData = null;
+    try {
+      const [disabilityRows] = await db.query('SELECT * FROM disability_data WHERE record_id = ?', [id]) as [any[], any];
+      if (disabilityRows.length > 0) {
+        disabilityData = disabilityRows[0];
+        console.log('Datos de discapacidad encontrados:', disabilityData);
+      }
+    } catch (err) {
+      console.log('Error obteniendo datos de discapacidad (tabla puede no existir):', err);
+    }
+    
+    // Obtener requisitos de inscripción
+    let registrationRequirements = null;
+    try {
+      const [requirementsRows] = await db.query('SELECT * FROM registration_requirements WHERE record_id = ?', [id]) as [any[], any];
+      if (requirementsRows.length > 0) {
+        registrationRequirements = requirementsRows[0];
+        console.log('Requisitos de inscripción encontrados:', registrationRequirements);
+      }
+    } catch (err) {
+      console.log('Error obteniendo requisitos de inscripción (tabla puede no existir):', err);
+    }
+    
+    // Obtener boleta de matrícula
+    let enrollmentForm = null;
+    try {
+      const [enrollmentRows] = await db.query('SELECT * FROM enrollment_form WHERE record_id = ?', [id]) as [any[], any];
+      if (enrollmentRows.length > 0) {
+        enrollmentForm = enrollmentRows[0];
+        console.log('Boleta de matrícula encontrada:', enrollmentForm);
+      }
+    } catch (err) {
+      console.log('Error obteniendo boleta de matrícula (tabla puede no existir):', err);
+    }
+    
+    // Obtener datos socioeconómicos
+    let socioeconomicData = null;
+    try {
+      const [socioeconomicRows] = await db.query('SELECT * FROM socioeconomic_data WHERE record_id = ?', [id]) as [any[], any];
+      if (socioeconomicRows.length > 0) {
+        socioeconomicData = socioeconomicRows[0];
+        console.log('Datos socioeconómicos encontrados:', socioeconomicData);
+      }
+    } catch (err) {
+      console.log('Error obteniendo datos socioeconómicos (tabla puede no existir):', err);
+    }
+    
+    // Obtener documentos
+    let documents = [];
+    try {
+      const [documentsRows] = await db.query('SELECT * FROM record_documents WHERE record_id = ? ORDER BY uploaded_at DESC', [id]) as [any[], any];
+      documents = documentsRows;
+      console.log('Documentos encontrados:', documents.length);
+      console.log('Detalle de documentos:', documents);
+      
+      // Log detallado de cada documento
+      documents.forEach((doc, index) => {
+        console.log(`Documento ${index + 1}:`, {
+          id: doc.id,
+          record_id: doc.record_id,
+          document_type: doc.document_type,
+          file_name: doc.file_name,
+          original_name: doc.original_name,
+          uploaded_at: doc.uploaded_at
+        });
+      });
+    } catch (err) {
+      console.log('Error obteniendo documentos (tabla puede no existir):', err);
+    }
+    
     // Obtener notas
     let notesRows = [];
     try {
@@ -105,7 +176,6 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       console.log('Notas encontradas:', notesRows.length);
     } catch (err) {
       console.log('Error obteniendo notas (tabla puede no existir):', err);
-      notesRows = [];
     }
     
     const result = {
@@ -117,11 +187,11 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       updated_at: row.updated_at,
       created_by: row.created_by,
       personal_data: personalData,
-      disability_data: null,
-      registration_requirements: null,
-      enrollment_form: null,
-      socioeconomic_data: null,
-      documents: [],
+      disability_data: disabilityData,
+      registration_requirements: registrationRequirements,
+      enrollment_form: enrollmentForm,
+      socioeconomic_data: socioeconomicData,
+      documents: documents,
       notes: notesRows
     };
     
@@ -678,12 +748,27 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
     console.log('=== CREANDO/ACTUALIZANDO FICHA SOCIOECONÓMICA ===');
     console.log('Record ID:', recordId);
     console.log('Socioeconomic data:', socioeconomicData);
+    console.log('Family income:', socioeconomicData.family_income);
+    console.log('Available services:', socioeconomicData.available_services);
+    console.log('Working family members:', socioeconomicData.working_family_members);
     
     // Verificar si ya existe ficha
     const [existingRows] = await db.query(
       'SELECT id FROM socioeconomic_data WHERE record_id = ?',
       [recordId]
     ) as [any[], any];
+    
+    // Preparar datos para inserción
+    const servicesJson = Array.isArray(socioeconomicData.available_services) 
+      ? JSON.stringify(socioeconomicData.available_services) 
+      : socioeconomicData.available_services;
+    
+    const workingPeopleJson = Array.isArray(socioeconomicData.working_family_members) 
+      ? JSON.stringify(socioeconomicData.working_family_members) 
+      : socioeconomicData.working_family_members;
+    
+    console.log('Services JSON:', servicesJson);
+    console.log('Working people JSON:', workingPeopleJson);
     
     if (existingRows.length > 0) {
       // Actualizar ficha existente
@@ -694,9 +779,9 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
          WHERE record_id = ?`,
         [
           cleanValue(socioeconomicData.housing_type),
-          cleanValue(socioeconomicData.available_services),
+          cleanValue(servicesJson),
           cleanValue(socioeconomicData.family_income),
-          cleanValue(socioeconomicData.working_family_members),
+          cleanValue(workingPeopleJson),
           recordId
         ]
       );
@@ -710,9 +795,9 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
         [
           recordId,
           cleanValue(socioeconomicData.housing_type),
-          cleanValue(socioeconomicData.available_services),
+          cleanValue(servicesJson),
           cleanValue(socioeconomicData.family_income),
-          cleanValue(socioeconomicData.working_family_members)
+          cleanValue(workingPeopleJson)
         ]
       );
       console.log('Ficha socioeconómica creada');
@@ -730,20 +815,20 @@ export const createDocument = async (recordId: number, documentData: any): Promi
     console.log('Record ID:', recordId);
     console.log('Document data:', documentData);
     
-    await db.query(
-      `INSERT INTO record_documents 
-       (record_id, document_type, file_path, file_name, file_size, original_name, uploaded_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        recordId,
-        cleanValue(documentData.document_type),
-        cleanValue(documentData.file_path),
-        cleanValue(documentData.file_name),
-        cleanValue(documentData.file_size),
-        cleanValue(documentData.original_name),
-        cleanValue(documentData.uploaded_by)
-      ]
-    );
+         await db.query(
+       `INSERT INTO record_documents 
+        (record_id, document_type, file_path, file_name, file_size, original_name, uploaded_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       [
+         recordId,
+         cleanValue(documentData.document_type),
+         cleanValue(documentData.file_path),
+         cleanValue(documentData.file_name),
+         cleanValue(documentData.file_size),
+         cleanValue(documentData.original_name),
+         cleanValue(documentData.uploaded_by) || null // Permitir NULL si no hay uploaded_by
+       ]
+     );
     
     console.log('Documento creado exitosamente');
   } catch (err) {

@@ -208,27 +208,114 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
       await RecordModel.createOrUpdateSocioeconomicData(id, socioeconomic_information);
     }
     
-    // Procesar documentos si existen
-    if (req.files && Array.isArray(req.files)) {
-      console.log('Procesando archivos subidos:', req.files.length);
-      for (const file of req.files) {
+         // Procesar documentos si existen
+     if (req.files && Array.isArray(req.files)) {
+       console.log('Procesando archivos subidos:', req.files.length);
+       
+       for (const file of req.files) {
         console.log('Procesando archivo:', file.originalname);
-        // Verificar si el usuario es admin antes de crear el documento
         const userId = (req as any).user?.userId || (req as any).user?.id;
-        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
         
-        if (adminRows.length > 0) {
-          await RecordModel.createDocument(id, {
-            document_type: file.fieldname || 'other',
-            file_path: file.path || '',
-            file_name: file.filename || '',
-            file_size: file.size || 0,
-            original_name: file.originalname || '',
-            uploaded_by: userId
-          });
-        } else {
-          console.log('Usuario no es admin, omitiendo documento:', file.originalname);
-        }
+                 // Mapear el nombre del campo del frontend al tipo de documento del backend
+         const mapDocumentType = (fieldname: string, originalName: string): string => {
+           console.log('Mapeando documento - fieldname:', fieldname, 'originalName:', originalName);
+           
+           // Mapeo directo por fieldname primero
+           const fieldnameMapping: { [key: string]: string } = {
+             'dictamen_medico': 'medical_diagnosis',
+             'constancia_nacimiento': 'birth_certificate',
+             'copia_cedula': 'cedula',
+             'copias_cedulas_familia': 'cedula',
+             'foto_pasaporte': 'photo',
+             'constancia_pension_ccss': 'pension_certificate',
+             'constancia_pension_alimentaria': 'pension_certificate',
+             'constancia_estudio': 'study_certificate',
+             'cuenta_banco_nacional': 'other'
+           };
+           
+           // Si tenemos un fieldname específico, usarlo
+           if (fieldname && fieldname !== 'documents' && fieldnameMapping[fieldname]) {
+             console.log('Mapeo por fieldname:', fieldname, '->', fieldnameMapping[fieldname]);
+             return fieldnameMapping[fieldname];
+           }
+           
+           // Si el fieldname es genérico, intentar extraer el tipo del nombre del archivo
+           if (fieldname === 'documents' || fieldname === '') {
+             // Primero, verificar si el nombre del archivo ya incluye el tipo (formato: tipo_nombrearchivo.pdf)
+             const fileNameParts = originalName.split('_');
+             if (fileNameParts.length > 1) {
+               const possibleType = fileNameParts[0];
+               if (fieldnameMapping[possibleType]) {
+                 console.log('Detectado tipo por prefijo en nombre:', possibleType, '->', fieldnameMapping[possibleType]);
+                 return fieldnameMapping[possibleType];
+               }
+             }
+             
+             // Buscar patrones en el nombre del archivo
+             const fileName = originalName.toLowerCase();
+             
+             // Patrones para identificar tipos de documentos
+             if (fileName.includes('dictamen') || fileName.includes('medico') || fileName.includes('diagnostico') || fileName.includes('diagnóstico')) {
+               console.log('Detectado como dictamen médico por nombre de archivo');
+               return 'medical_diagnosis';
+             }
+             if (fileName.includes('nacimiento') || fileName.includes('birth') || fileName.includes('partida')) {
+               console.log('Detectado como constancia de nacimiento por nombre de archivo');
+               return 'birth_certificate';
+             }
+             if (fileName.includes('cedula') || fileName.includes('identificacion') || fileName.includes('identificación') || fileName.includes('dni') || fileName.includes('carnet')) {
+               console.log('Detectado como cédula por nombre de archivo');
+               return 'cedula';
+             }
+             if (fileName.includes('foto') || fileName.includes('photo') || fileName.includes('imagen') || fileName.includes('retrato')) {
+               console.log('Detectado como foto por nombre de archivo');
+               return 'photo';
+             }
+             if (fileName.includes('pension') || fileName.includes('ccss') || fileName.includes('pensión')) {
+               console.log('Detectado como constancia de pensión por nombre de archivo');
+               return 'pension_certificate';
+             }
+             if (fileName.includes('estudio') || fileName.includes('study') || fileName.includes('academico') || fileName.includes('académico')) {
+               console.log('Detectado como constancia de estudio por nombre de archivo');
+               return 'study_certificate';
+             }
+             if (fileName.includes('socioeconomica') || fileName.includes('socioeconómica') || fileName.includes('beca') || fileName.includes('solicitud')) {
+               console.log('Detectado como formulario socioeconómico por nombre de archivo');
+               return 'other';
+             }
+             
+             // Intentar detectar por extensión y tamaño (heurística)
+             if (fileName.endsWith('.pdf')) {
+               // Si es un PDF pequeño, podría ser una cédula
+               if (originalName.includes('cedula') || originalName.includes('identificacion')) {
+                 console.log('Detectado como cédula por heurística');
+                 return 'cedula';
+               }
+               // Si es un PDF con números, podría ser una orden o documento oficial
+               if (/\d{4,}/.test(originalName)) {
+                 console.log('Detectado como documento oficial por heurística (números)');
+                 return 'other';
+               }
+             }
+           }
+           
+           console.log('No se pudo mapear, usando tipo "other"');
+           return 'other';
+         };
+        
+        const documentType = mapDocumentType(file.fieldname || '', file.originalname || '');
+        console.log('Mapeando documento:', { fieldname: file.fieldname, originalName: file.originalname, documentType });
+        
+        // Crear documento para cualquier usuario (no solo admin)
+        await RecordModel.createDocument(id, {
+          document_type: documentType,
+          file_path: file.path || '',
+          file_name: file.filename || '',
+          file_size: file.size || 0,
+          original_name: file.originalname || '',
+          uploaded_by: userId
+        });
+        console.log('Documento creado exitosamente:', file.originalname, 'como tipo:', documentType);
       }
     } else {
       console.log('No se subieron archivos');

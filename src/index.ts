@@ -14,6 +14,9 @@ import workshopEnrollmentRoutes from './routes/workshop/enrollment.routes';
 import enrollmentRoutes from './routes/workshop/enrollment.routes';
 import workshopRoutes from './routes/workshop/workshop.routes';
 import userRoutes from './routes/user/user.routes';
+import recordRoutes from './routes/records/record.routes';
+import recordDocumentRoutes from './routes/records/document.routes';
+import path from 'path';
 
 dotenv.config();
 
@@ -21,6 +24,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(express.json());
 app.use(cors());
 
@@ -28,8 +32,8 @@ app.get('/', (req, res) => {
   res.send('Backend is running!');
 });
 
-// Public login endpoint
-app.post('/login', async (req, res): Promise<void> => {
+// Public login endpoint (legacy for admin login)
+app.post('/admin-login', async (req, res): Promise<void> => {
   const { username, password } = req.body;
   try {
     const [rows] = await db.query('SELECT * FROM admins WHERE username = ?', [username]) as [any[], any];
@@ -63,7 +67,9 @@ app.use('/events-news', eventsNewsRoutes); // GET is public, others protected in
 app.use('/attendance', attendanceRoutes); // Individual routes are protected in the route file
 app.use('/workshop-enrollments', workshopEnrollmentRoutes); // Individual routes are protected in the route file
 app.use('/enrollments', enrollmentRoutes); // Individual routes are protected in the route file
-app.use('/workshops', workshopRoutes); // Individual routes are protected in the route file
+app.use('/workshops', workshopRoutes);
+app.use('/records', recordRoutes);
+// app.use('/records', recordDocumentRoutes); // Individual routes are protected in the route file - TEMPORARILY DISABLED
 
 db.getConnection()
   .then(() => console.log('MySQL connection successful!'))

@@ -1,0 +1,21 @@
+CREATE TABLE enrollment_form (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  enrollment_date DATE,
+  applicant_full_name VARCHAR(255),
+  applicant_cedula VARCHAR(50),
+  applicant_birth_date DATE,
+  applicant_age INT,
+  nationality VARCHAR(100),
+  home_address TEXT,
+  medical_conditions TEXT,
+  blood_type VARCHAR(10),
+  mother_name VARCHAR(255),
+  mother_occupation VARCHAR(255),
+  father_name VARCHAR(255),
+  father_occupation VARCHAR(255),
+  emergency_phones TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);

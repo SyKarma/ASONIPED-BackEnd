@@ -1,0 +1,49 @@
+import express from 'express';
+import { authenticateToken } from '../../middleware/auth.middleware';
+import { uploadRecordDocuments, handleUploadError } from '../../middleware/upload.middleware';
+import * as RecordController from '../../controllers/records/record.controller';
+
+const router = express.Router();
+
+// Public routes (for registration form)
+router.post('/', authenticateToken, RecordController.createRecord); // Create record (requires authentication)
+
+// Test and debug routes (without authentication)
+router.get('/test', (req: any, res: any) => res.json({ message: 'Records routes are working!' })); // Test route
+router.get('/check-personal-data', RecordController.checkPersonalDataTable); // Check personal_data table
+router.get('/debug/database-public', RecordController.debugDatabase); // Temporary debug without authentication
+
+// Protected specific routes (must go BEFORE routes with parameters)
+router.get('/my-record', authenticateToken, RecordController.getMyRecord); // Get user's record
+router.get('/stats', authenticateToken, RecordController.getRecordStats); // Statistics
+router.get('/debug/database', authenticateToken, RecordController.debugDatabase); // Temporary debug
+
+// Routes with specific parameters
+router.get('/search/cedula/:cedula', authenticateToken, RecordController.searchRecordByCedula); // Search by cedula
+router.get('/check-cedula/:cedula', authenticateToken, RecordController.checkCedulaExists); // Check cedula
+router.get('/check-cedula-availability/:cedula', RecordController.checkCedulaAvailability); // Check cedula availability
+
+// General routes (require authentication)
+router.get('/', authenticateToken, RecordController.getRecords); // List records
+
+// Routes for specific records (with parameters)
+router.get('/:id', authenticateToken, RecordController.getRecordById); // Get record
+router.put('/:id', authenticateToken, RecordController.updateRecord); // Update record
+router.put('/:id/complete', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.completeRecord); // Complete record
+router.delete('/:id', authenticateToken, RecordController.deleteRecord); // Delete record
+router.patch('/:id/status', authenticateToken, RecordController.updateRecordStatus); // Change status
+
+// Routes for approvals/rejections
+router.put('/:id/approve-phase1', authenticateToken, RecordController.approvePhase1); // Approve phase 1
+router.put('/:id/reject-phase1', authenticateToken, RecordController.rejectPhase1); // Reject phase 1
+router.put('/:id/approve', authenticateToken, RecordController.approveRecord); // Approve complete record
+router.put('/:id/reject', authenticateToken, RecordController.rejectRecord); // Reject complete record
+
+// Routes for managing comments
+router.put('/notes/:noteId', authenticateToken, RecordController.updateNote); // Update comment
+router.delete('/notes/:noteId', authenticateToken, RecordController.deleteNote); // Delete comment
+
+// Route to delete record
+router.delete('/:id', authenticateToken, RecordController.deleteRecord); // Delete record
+
+export default router; 

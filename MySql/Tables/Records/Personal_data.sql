@@ -1,0 +1,20 @@
+CREATE TABLE personal_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  pcd_name VARCHAR(255) NOT NULL,
+  cedula VARCHAR(50) UNIQUE NOT NULL,
+  gender ENUM('male', 'female', 'other'),
+  birth_date DATE,
+  birth_place VARCHAR(255),
+  address TEXT,
+  province VARCHAR(100),
+  district VARCHAR(100),
+  mother_name VARCHAR(255),
+  mother_cedula VARCHAR(50),
+  father_name VARCHAR(255),
+  father_cedula VARCHAR(50),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);

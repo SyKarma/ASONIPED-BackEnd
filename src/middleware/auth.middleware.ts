@@ -40,11 +40,21 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { username: string; role?: string };
-    req.user = decoded;
+    const decoded = jwt.verify(token, JWT_SECRET) as { username: string; role?: string; userId?: number; id?: number };
+    
+    // Ensure userId is available
+    if (decoded.userId) {
+      (req as any).user = { ...decoded, userId: decoded.userId };
+    } else if (decoded.id) {
+      (req as any).user = { ...decoded, userId: decoded.id };
+    } else {
+      (req as any).user = decoded;
+    }
+    
     next();
     return Promise.resolve();
   } catch (error) {
+    console.error('Token verification failed:', error);
     res.status(403).json({ message: 'Invalid token' });
     return Promise.resolve();
   }

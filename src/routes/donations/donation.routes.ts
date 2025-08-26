@@ -13,8 +13,6 @@ router.get('/:id', DonationController.getDonationById);
 // Create a new donation (public)
 router.post('/', DonationController.addDonation);
 
-// Update donation status (admin)
-router.put('/:id', authenticateAdmin, DonationController.updateDonationStatus);
 
 // Delete a donation (admin)
 router.delete('/:id', authenticateAdmin, DonationController.deleteDonation);

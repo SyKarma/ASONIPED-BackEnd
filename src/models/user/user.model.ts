@@ -39,7 +39,7 @@ export interface UserProfile {
   updated_at?: Date;
 }
 
-// Crear nuevo usuario
+// Create new user
 export const createUser = async (userData: Omit<User, 'id' | 'created_at' | 'updated_at'>): Promise<number> => {
   const { password_hash, ...userInfo } = userData;
   
@@ -51,28 +51,28 @@ export const createUser = async (userData: Omit<User, 'id' | 'created_at' | 'upd
   return (result as any).insertId;
 };
 
-// Obtener usuario por ID
+// Get user by ID
 export const getUserById = async (id: number): Promise<User | null> => {
   const [rows] = await db.query('SELECT * FROM users WHERE id = ?', [id]);
   const users = rows as User[];
   return users.length > 0 ? users[0] : null;
 };
 
-// Obtener usuario por username
+// Get user by username
 export const getUserByUsername = async (username: string): Promise<User | null> => {
   const [rows] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
   const users = rows as User[];
   return users.length > 0 ? users[0] : null;
 };
 
-// Obtener usuario por email
+// Get user by email
 export const getUserByEmail = async (email: string): Promise<User | null> => {
   const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
   const users = rows as User[];
   return users.length > 0 ? users[0] : null;
 };
 
-// Obtener usuario con roles
+// Get user with roles
 export const getUserWithRoles = async (id: number): Promise<UserWithRoles | null> => {
   const [userRows] = await db.query('SELECT * FROM users WHERE id = ?', [id]);
   const users = userRows as User[];
@@ -81,7 +81,7 @@ export const getUserWithRoles = async (id: number): Promise<UserWithRoles | null
   
   const user = users[0];
   
-  // Obtener roles del usuario
+  // Get user roles
   const [roleRows] = await db.query(`
     SELECT ur.name 
     FROM user_roles ur 
@@ -97,29 +97,29 @@ export const getUserWithRoles = async (id: number): Promise<UserWithRoles | null
   };
 };
 
-// Actualizar usuario
+// Update user
 export const updateUser = async (id: number, data: Partial<User>): Promise<void> => {
   await db.query('UPDATE users SET ? WHERE id = ?', [data, id]);
 };
 
-// Eliminar usuario
+// Delete user
 export const deleteUser = async (id: number): Promise<void> => {
   await db.query('DELETE FROM users WHERE id = ?', [id]);
 };
 
-// Verificar contraseña
+// Verify password
 export const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
   return await bcrypt.compare(password, hash);
 };
 
-// Encriptar contraseña
+// Encrypt password
 export const hashPassword = async (password: string): Promise<string> => {
   return await bcrypt.hash(password, 12);
 };
 
-// Asignar rol a usuario
+// Assign role to user
 export const assignRoleToUser = async (userId: number, roleName: string): Promise<void> => {
-  // Obtener el ID del rol
+  // Get role ID
   const [roleRows] = await db.query('SELECT id FROM user_roles WHERE name = ?', [roleName]);
   const roles = roleRows as any[];
   
@@ -129,14 +129,14 @@ export const assignRoleToUser = async (userId: number, roleName: string): Promis
   
   const roleId = roles[0].id;
   
-  // Verificar si ya tiene el rol
+  // Check if user already has the role
   const [existingRows] = await db.query(
     'SELECT id FROM user_role_assignments WHERE user_id = ? AND role_id = ?',
     [userId, roleId]
   );
   
   if ((existingRows as any[]).length === 0) {
-    // Asignar el rol
+    // Assign the role
     await db.query(
       'INSERT INTO user_role_assignments (user_id, role_id) VALUES (?, ?)',
       [userId, roleId]
@@ -144,9 +144,9 @@ export const assignRoleToUser = async (userId: number, roleName: string): Promis
   }
 };
 
-// Remover rol de usuario
+// Remove role from user
 export const removeRoleFromUser = async (userId: number, roleName: string): Promise<void> => {
-  // Obtener el ID del rol
+  // Get role ID
   const [roleRows] = await db.query('SELECT id FROM user_roles WHERE name = ?', [roleName]);
   const roles = roleRows as any[];
   
@@ -156,14 +156,14 @@ export const removeRoleFromUser = async (userId: number, roleName: string): Prom
   
   const roleId = roles[0].id;
   
-  // Remover el rol
+  // Remove the role
   await db.query(
     'DELETE FROM user_role_assignments WHERE user_id = ? AND role_id = ?',
     [userId, roleId]
   );
 };
 
-// Obtener roles de usuario
+// Get user roles
 export const getUserRoles = async (userId: number): Promise<string[]> => {
   const [rows] = await db.query(`
     SELECT ur.name 
@@ -175,7 +175,7 @@ export const getUserRoles = async (userId: number): Promise<string[]> => {
   return (rows as any[]).map(row => row.name);
 };
 
-// Verificar si usuario tiene rol
+// Check if user has role
 export const userHasRole = async (userId: number, roleName: string): Promise<boolean> => {
   const [rows] = await db.query(`
     SELECT COUNT(*) as count
@@ -187,7 +187,7 @@ export const userHasRole = async (userId: number, roleName: string): Promise<boo
   return (rows as any)[0].count > 0;
 };
 
-// Crear perfil de usuario
+// Create user profile
 export const createUserProfile = async (profile: Omit<UserProfile, 'id' | 'created_at' | 'updated_at'>): Promise<void> => {
   await db.query(
     'INSERT INTO user_profiles (user_id, profile_type, profile_data) VALUES (?, ?, ?)',
@@ -195,7 +195,7 @@ export const createUserProfile = async (profile: Omit<UserProfile, 'id' | 'creat
   );
 };
 
-// Obtener perfil de usuario
+// Get user profile
 export const getUserProfile = async (userId: number, profileType: string): Promise<UserProfile | null> => {
   const [rows] = await db.query(
     'SELECT * FROM user_profiles WHERE user_id = ? AND profile_type = ?',
@@ -206,7 +206,7 @@ export const getUserProfile = async (userId: number, profileType: string): Promi
   return profiles.length > 0 ? profiles[0] : null;
 };
 
-// Actualizar perfil de usuario
+// Update user profile
 export const updateUserProfile = async (userId: number, profileType: string, data: any): Promise<void> => {
   await db.query(
     'UPDATE user_profiles SET profile_data = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND profile_type = ?',
@@ -214,13 +214,13 @@ export const updateUserProfile = async (userId: number, profileType: string, dat
   );
 }; 
 
-// Obtener todos los usuarios
+// Get all users
 export const getAllUsers = async (): Promise<User[]> => {
   const [rows] = await db.query('SELECT * FROM users ORDER BY created_at DESC');
   return rows as User[];
 };
 
-// Eliminar todos los roles de un usuario
+// Remove all roles from a user
 export const removeAllUserRoles = async (userId: number): Promise<void> => {
   await db.query('DELETE FROM user_role_assignments WHERE user_id = ?', [userId]);
 }; 

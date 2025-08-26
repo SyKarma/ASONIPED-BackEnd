@@ -20,7 +20,7 @@ export interface PersonalData {
   updated_at?: Date;
 }
 
-// Crear datos personales
+// Create personal data
 export const createPersonalData = async (data: PersonalData): Promise<void> => {
   await db.query(
     `INSERT INTO personal_data 
@@ -45,45 +45,45 @@ export const createPersonalData = async (data: PersonalData): Promise<void> => {
   );
 };
 
-// Obtener datos personales por record_id
+// Get personal data by record_id
 export const getPersonalDataByRecordId = async (recordId: number): Promise<PersonalData | null> => {
   const [rows] = await db.query('SELECT * FROM personal_data WHERE record_id = ?', [recordId]);
   const data = rows as PersonalData[];
   return data.length > 0 ? data[0] : null;
 };
 
-// Actualizar datos personales
+// Update personal data
 export const updatePersonalData = async (recordId: number, data: Partial<PersonalData>): Promise<void> => {
   await db.query('UPDATE personal_data SET ? WHERE record_id = ?', [data, recordId]);
 };
 
-// Eliminar datos personales
+// Delete personal data
 export const deletePersonalData = async (recordId: number): Promise<void> => {
   await db.query('DELETE FROM personal_data WHERE record_id = ?', [recordId]);
 };
 
-// Verificar si una cédula ya existe
+// Check if a cedula already exists
 export const checkCedulaExists = async (cedula: string, excludeRecordId?: number): Promise<boolean> => {
   let query = 'SELECT COUNT(*) as count FROM personal_data WHERE cedula = ?';
   const params = [cedula];
   
   if (excludeRecordId) {
     query += ' AND record_id != ?';
-    params.push(excludeRecordId);
+    params.push(excludeRecordId.toString());
   }
   
   const [rows] = await db.query(query, params);
   return (rows as any)[0].count > 0;
 };
 
-// Buscar por cédula
+// Search by cedula
 export const searchByCedula = async (cedula: string): Promise<PersonalData | null> => {
   const [rows] = await db.query('SELECT * FROM personal_data WHERE cedula = ?', [cedula]);
   const data = rows as PersonalData[];
   return data.length > 0 ? data[0] : null;
 };
 
-// Buscar por nombre
+// Search by name
 export const searchByName = async (name: string): Promise<PersonalData[]> => {
   const [rows] = await db.query(
     'SELECT * FROM personal_data WHERE full_name LIKE ? OR pcd_name LIKE ?',

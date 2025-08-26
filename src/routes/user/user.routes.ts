@@ -4,16 +4,16 @@ import { authenticateToken } from '../../middleware/auth.middleware';
 
 const router = express.Router();
 
-// Rutas públicas (no requieren autenticación)
+// Public routes (no authentication required)
 router.post('/register', UserController.registerUser);
 router.post('/login', UserController.loginUser);
 
-// Rutas protegidas (requieren autenticación)
+// Protected routes (require authentication)
 router.get('/profile', authenticateToken, UserController.getUserProfile);
 router.put('/profile', authenticateToken, UserController.updateUserProfile);
 router.post('/change-password', authenticateToken, UserController.changePassword);
 
-// Rutas de administración (requieren rol admin)
+// Administration routes (require admin role)
 router.get('/', authenticateToken, UserController.getAllUsers);
 router.post('/', authenticateToken, UserController.createUser);
 router.put('/:id', authenticateToken, UserController.updateUser);

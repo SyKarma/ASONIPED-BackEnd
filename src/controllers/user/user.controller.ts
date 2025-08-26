@@ -4,34 +4,34 @@ import * as UserModel from '../../models/user/user.model';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
-// Registrar nuevo usuario
+// Register new user
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, password, full_name, phone, roles } = req.body;
 
-    // Validaciones básicas
+    // Basic validations
     if (!username || !email || !password || !full_name) {
-      res.status(400).json({ error: 'Todos los campos obligatorios son requeridos' });
+      res.status(400).json({ error: 'All required fields are mandatory' });
       return;
     }
 
-    // Verificar si el usuario ya existe
+    // Check if user already exists
     const existingUser = await UserModel.getUserByUsername(username);
     if (existingUser) {
-      res.status(400).json({ error: 'El nombre de usuario ya existe' });
+      res.status(400).json({ error: 'Username already exists' });
       return;
     }
 
     const existingEmail = await UserModel.getUserByEmail(email);
     if (existingEmail) {
-      res.status(400).json({ error: 'El email ya está registrado' });
+      res.status(400).json({ error: 'Email is already registered' });
       return;
     }
 
-    // Encriptar contraseña
+    // Encrypt password
     const passwordHash = await UserModel.hashPassword(password);
 
-    // Crear usuario
+    // Create user
     const userId = await UserModel.createUser({
       username,
       email,
@@ -41,7 +41,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       status: 'active'
     });
 
-    // Asignar roles si se proporcionan
+    // Assign roles if provided
     if (roles && Array.isArray(roles)) {
       for (const role of roles) {
         try {
@@ -51,15 +51,15 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
         }
       }
     } else {
-      // Asignar rol básico por defecto
+      // Assign default basic role
       await UserModel.assignRoleToUser(userId, 'user');
     }
 
-    // Obtener usuario con roles
+    // Get user with roles
     const userWithRoles = await UserModel.getUserWithRoles(userId);
 
     res.status(201).json({
-      message: 'Usuario registrado exitosamente',
+      message: 'User registered successfully',
       user: {
         id: userWithRoles?.id,
         username: userWithRoles?.username,
@@ -70,48 +70,48 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     });
   } catch (err) {
     console.error('Error registering user:', err);
-    res.status(500).json({ error: 'Error registrando usuario' });
+    res.status(500).json({ error: 'Error registering user' });
   }
 };
 
-// Login de usuario
+// User login
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
+      res.status(400).json({ error: 'Username and password are required' });
       return;
     }
 
-    // Buscar usuario por username o email
+    // Search user by username or email
     let user = await UserModel.getUserByUsername(username);
     if (!user) {
       user = await UserModel.getUserByEmail(username);
     }
 
     if (!user) {
-      res.status(401).json({ error: 'Credenciales inválidas' });
+      res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
-    // Verificar contraseña
+    // Verify password
     const isValidPassword = await UserModel.verifyPassword(password, user.password_hash!);
     if (!isValidPassword) {
-      res.status(401).json({ error: 'Credenciales inválidas' });
+      res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
-    // Verificar que el usuario esté activo
+    // Check if user is active
     if (user.status !== 'active') {
-      res.status(401).json({ error: 'Cuenta inactiva' });
+      res.status(401).json({ error: 'Inactive account' });
       return;
     }
 
-    // Obtener roles del usuario
+    // Get user roles
     const roles = await UserModel.getUserRoles(user.id!);
 
-    // Generar token JWT
+    // Generate JWT token
     const token = jwt.sign(
       {
         userId: user.id,
@@ -123,7 +123,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     );
 
     res.json({
-      message: 'Login exitoso',
+      message: 'Login successful',
       token,
       user: {
         id: user.id,
@@ -135,24 +135,24 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err) {
     console.error('Error during login:', err);
-    res.status(500).json({ error: 'Error durante el login' });
+    res.status(500).json({ error: 'Error during login' });
   }
 };
 
-// Obtener perfil del usuario actual
+// Get current user profile
 export const getUserProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.userId;
     
     if (!userId) {
-      res.status(401).json({ error: 'Usuario no autenticado' });
+      res.status(401).json({ error: 'User not authenticated' });
       return;
     }
 
     const user = await UserModel.getUserWithRoles(userId);
     
     if (!user) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
@@ -168,32 +168,32 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
     });
   } catch (err) {
     console.error('Error getting user profile:', err);
-    res.status(500).json({ error: 'Error obteniendo perfil de usuario' });
+    res.status(500).json({ error: 'Error getting user profile' });
   }
 };
 
-// Actualizar perfil de usuario
+// Update user profile
 export const updateUserProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.userId;
     
     if (!userId) {
-      res.status(401).json({ error: 'Usuario no autenticado' });
+      res.status(401).json({ error: 'User not authenticated' });
       return;
     }
 
     const { full_name, phone, email } = req.body;
 
-    // Verificar si el email ya existe (si se está cambiando)
+    // Check if email already exists (if being changed)
     if (email) {
       const existingUser = await UserModel.getUserByEmail(email);
       if (existingUser && existingUser.id !== userId) {
-        res.status(400).json({ error: 'El email ya está en uso' });
+        res.status(400).json({ error: 'Email is already in use' });
         return;
       }
     }
 
-    // Actualizar datos del usuario
+    // Update user data
     const updateData: any = {};
     if (full_name) updateData.full_name = full_name;
     if (phone !== undefined) updateData.phone = phone;
@@ -201,210 +201,210 @@ export const updateUserProfile = async (req: Request, res: Response): Promise<vo
 
     await UserModel.updateUser(userId, updateData);
 
-    res.json({ message: 'Perfil actualizado exitosamente' });
+    res.json({ message: 'Profile updated successfully' });
   } catch (err) {
     console.error('Error updating user profile:', err);
-    res.status(500).json({ error: 'Error actualizando perfil' });
+    res.status(500).json({ error: 'Error updating profile' });
   }
 };
 
-// Cambiar contraseña
+// Change password
 export const changePassword = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.userId;
     
     if (!userId) {
-      res.status(401).json({ error: 'Usuario no autenticado' });
+      res.status(401).json({ error: 'User not authenticated' });
       return;
     }
 
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      res.status(400).json({ error: 'Contraseña actual y nueva contraseña son requeridas' });
+      res.status(400).json({ error: 'Current password and new password are required' });
       return;
     }
 
-    // Obtener usuario actual
+    // Get current user
     const user = await UserModel.getUserById(userId);
     if (!user) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    // Verificar contraseña actual
+    // Verify current password
     const isValidPassword = await UserModel.verifyPassword(currentPassword, user.password_hash!);
     if (!isValidPassword) {
-      res.status(400).json({ error: 'Contraseña actual incorrecta' });
+      res.status(400).json({ error: 'Current password is incorrect' });
       return;
     }
 
-    // Encriptar nueva contraseña
+    // Encrypt new password
     const newPasswordHash = await UserModel.hashPassword(newPassword);
 
-    // Actualizar contraseña
+    // Update password
     await UserModel.updateUser(userId, { password_hash: newPasswordHash });
 
-    res.json({ message: 'Contraseña cambiada exitosamente' });
+    res.json({ message: 'Password changed successfully' });
   } catch (err) {
     console.error('Error changing password:', err);
-    res.status(500).json({ error: 'Error cambiando contraseña' });
+    res.status(500).json({ error: 'Error changing password' });
   }
 };
 
-// Asignar rol a usuario (solo admins)
+// Assign role to user (admin only)
 export const assignRole = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId, roleName } = req.body;
 
     if (!userId || !roleName) {
-      res.status(400).json({ error: 'ID de usuario y nombre de rol son requeridos' });
+      res.status(400).json({ error: 'User ID and role name are required' });
       return;
     }
 
     await UserModel.assignRoleToUser(userId, roleName);
 
-    res.json({ message: 'Rol asignado exitosamente' });
+    res.json({ message: 'Role assigned successfully' });
   } catch (err) {
     console.error('Error assigning role:', err);
-    res.status(500).json({ error: 'Error asignando rol' });
+    res.status(500).json({ error: 'Error assigning role' });
   }
 };
 
-// Remover rol de usuario (solo admins)
+// Remove role from user (admin only)
 export const removeRole = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId, roleName } = req.body;
 
     if (!userId || !roleName) {
-      res.status(400).json({ error: 'ID de usuario y nombre de rol son requeridos' });
+      res.status(400).json({ error: 'User ID and role name are required' });
       return;
     }
 
     await UserModel.removeRoleFromUser(userId, roleName);
 
-    res.json({ message: 'Rol removido exitosamente' });
+    res.json({ message: 'Role removed successfully' });
   } catch (err) {
     console.error('Error removing role:', err);
-    res.status(500).json({ error: 'Error removiendo rol' });
+    res.status(500).json({ error: 'Error removing role' });
   }
 }; 
 
-// Obtener todos los usuarios (solo para admins)
+// Get all users (admin only)
 export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const users = await UserModel.getAllUsers();
     res.json(users);
   } catch (err) {
     console.error('Error getting all users:', err);
-    res.status(500).json({ error: 'Error obteniendo usuarios' });
+    res.status(500).json({ error: 'Error getting users' });
   }
 };
 
-// Crear nuevo usuario (solo para admins)
+// Create new user (admin only)
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
+      res.status(400).json({ error: 'Username and password are required' });
       return;
     }
 
-    // Verificar si el usuario ya existe
+    // Check if user already exists
     const existingUser = await UserModel.getUserByUsername(username);
     if (existingUser) {
-      res.status(400).json({ error: 'El nombre de usuario ya existe' });
+      res.status(400).json({ error: 'Username already exists' });
       return;
     }
 
-    // Encriptar contraseña
+    // Encrypt password
     const passwordHash = await UserModel.hashPassword(password);
 
-    // Crear usuario
+    // Create user
     const userId = await UserModel.createUser({
       username,
-      email: `${username}@asoniped.com`, // Email temporal
+      email: `${username}@asoniped.com`, // Temporary email
       password_hash: passwordHash,
-      full_name: username, // Nombre temporal
+      full_name: username, // Temporary name
       status: 'active'
     });
 
-    // Asignar rol admin
+    // Assign admin role
     await UserModel.assignRoleToUser(userId, 'admin');
 
-    res.status(201).json({ message: 'Usuario creado exitosamente', id: userId });
+    res.status(201).json({ message: 'User created successfully', id: userId });
   } catch (err) {
     console.error('Error creating user:', err);
-    res.status(500).json({ error: 'Error creando usuario' });
+    res.status(500).json({ error: 'Error creating user' });
   }
 };
 
-// Actualizar usuario (solo para admins)
+// Update user (admin only)
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { username, password } = req.body;
 
     if (!username) {
-      res.status(400).json({ error: 'Usuario es requerido' });
+      res.status(400).json({ error: 'Username is required' });
       return;
     }
 
-    // Verificar si el usuario existe
+    // Check if user exists
     const existingUser = await UserModel.getUserById(Number(id));
     if (!existingUser) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    // Verificar si el nuevo username ya existe (si es diferente)
+    // Check if new username already exists (if different)
     if (username !== existingUser.username) {
       const userWithUsername = await UserModel.getUserByUsername(username);
       if (userWithUsername) {
-        res.status(400).json({ error: 'El nombre de usuario ya existe' });
+        res.status(400).json({ error: 'Username already exists' });
         return;
       }
     }
 
-    // Preparar datos de actualización
+    // Prepare update data
     const updateData: any = { username };
     
-    // Si se proporciona nueva contraseña, encriptarla
+    // If new password provided, encrypt it
     if (password) {
       updateData.password_hash = await UserModel.hashPassword(password);
     }
 
     await UserModel.updateUser(Number(id), updateData);
 
-    res.json({ message: 'Usuario actualizado exitosamente' });
+    res.json({ message: 'User updated successfully' });
   } catch (err) {
     console.error('Error updating user:', err);
-    res.status(500).json({ error: 'Error actualizando usuario' });
+    res.status(500).json({ error: 'Error updating user' });
   }
 };
 
-// Eliminar usuario (solo para admins)
+// Delete user (admin only)
 export const deleteUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
-    // Verificar si el usuario existe
+    // Check if user exists
     const existingUser = await UserModel.getUserById(Number(id));
     if (!existingUser) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    // Eliminar asignaciones de roles primero
+    // Remove role assignments first
     await UserModel.removeAllUserRoles(Number(id));
     
-    // Eliminar usuario
+    // Delete user
     await UserModel.deleteUser(Number(id));
 
-    res.json({ message: 'Usuario eliminado exitosamente' });
+    res.json({ message: 'User deleted successfully' });
   } catch (err) {
     console.error('Error deleting user:', err);
-    res.status(500).json({ error: 'Error eliminando usuario' });
+    res.status(500).json({ error: 'Error deleting user' });
   }
 }; 

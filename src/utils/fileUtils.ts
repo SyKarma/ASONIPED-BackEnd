@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-// Obtener información del archivo
+// Get file information
 export const getFileInfo = (filePath: string) => {
   try {
     const stats = fs.statSync(filePath);
@@ -16,7 +16,7 @@ export const getFileInfo = (filePath: string) => {
   }
 };
 
-// Eliminar archivo
+// Delete file
 export const deleteFile = (filePath: string): boolean => {
   try {
     if (fs.existsSync(filePath)) {
@@ -25,12 +25,12 @@ export const deleteFile = (filePath: string): boolean => {
     }
     return false;
   } catch (error) {
-    console.error('Error eliminando archivo:', error);
+    console.error('Error deleting file:', error);
     return false;
   }
 };
 
-// Eliminar directorio y todo su contenido
+// Delete directory and all its contents
 export const deleteDirectory = (dirPath: string): boolean => {
   try {
     if (fs.existsSync(dirPath)) {
@@ -39,23 +39,23 @@ export const deleteDirectory = (dirPath: string): boolean => {
     }
     return false;
   } catch (error) {
-    console.error('Error eliminando directorio:', error);
+    console.error('Error deleting directory:', error);
     return false;
   }
 };
 
-// Obtener URL pública del archivo
+// Get public URL of file
 export const getFileUrl = (recordId: string, fileName: string): string => {
   return `/uploads/records/${recordId}/${fileName}`;
 };
 
-// Validar tipo de archivo
+// Validate file type
 export const isValidFileType = (fileName: string, allowedTypes: string[]): boolean => {
   const extension = path.extname(fileName).toLowerCase();
   return allowedTypes.includes(extension);
 };
 
-// Obtener tamaño de archivo en formato legible
+// Get file size in readable format
 export const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes';
   
@@ -66,7 +66,7 @@ export const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Crear directorio si no existe
+// Create directory if it doesn't exist
 export const ensureDirectoryExists = (dirPath: string): void => {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });

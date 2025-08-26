@@ -20,7 +20,7 @@ export interface RecordWithDetails extends Record {
   notes?: any[];
 }
 
-// Generar número único de expediente
+// Generate unique record number
 export const generateRecordNumber = async (): Promise<string> => {
   const [rows] = await db.query('SELECT COUNT(*) as count FROM records') as [any[], any];
   const count = rows[0].count;
@@ -29,7 +29,7 @@ export const generateRecordNumber = async (): Promise<string> => {
   return `EXP-${year}-${paddedCount}`;
 };
 
-// Crear nuevo expediente
+// Create new record
 export const createRecord = async (record: Record): Promise<number> => {
   const recordNumber = await generateRecordNumber();
   const [result] = await db.query(
@@ -39,20 +39,17 @@ export const createRecord = async (record: Record): Promise<number> => {
   return (result as any).insertId;
 };
 
-// Obtener expediente por ID
+// Get record by ID
 export const getRecordById = async (id: number): Promise<Record | null> => {
   const [rows] = await db.query('SELECT * FROM records WHERE id = ?', [id]);
   const records = rows as Record[];
   return records.length > 0 ? records[0] : null;
 };
 
-// Obtener expediente completo con todos los datos
+// Get complete record with all data
 export const getRecordWithDetails = async (id: number): Promise<RecordWithDetails | null> => {
   try {
-    console.log('=== OBTENIENDO DETALLES DEL EXPEDIENTE ===');
-    console.log('Record ID:', id);
-    
-    // Obtener el expediente con datos personales usando LEFT JOIN
+    // Get record with personal data using LEFT JOIN
     const [rows] = await db.query(
       `SELECT r.*, 
               pd.id as pd_id, pd.full_name, pd.cedula, pd.pcd_name, pd.gender, 
@@ -66,14 +63,12 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
     ) as [any[], any];
     
     if (rows.length === 0) {
-      console.log('No se encontró el expediente');
       return null;
     }
     
     const row = rows[0];
-    console.log('Expediente encontrado:', row);
     
-    // Construir el objeto personal_data si existe
+    // Build personal_data object if it exists
     let personalData = null;
     if (row.full_name) {
       personalData = {
@@ -97,85 +92,66 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       };
     }
     
-    // Obtener datos de discapacidad
+    // Get disability data
     let disabilityData = null;
     try {
       const [disabilityRows] = await db.query('SELECT * FROM disability_data WHERE record_id = ?', [id]) as [any[], any];
       if (disabilityRows.length > 0) {
         disabilityData = disabilityRows[0];
-        console.log('Datos de discapacidad encontrados:', disabilityData);
       }
     } catch (err) {
-      console.log('Error obteniendo datos de discapacidad (tabla puede no existir):', err);
+      // Table may not exist
     }
     
-    // Obtener requisitos de inscripción
+    // Get registration requirements
     let registrationRequirements = null;
     try {
       const [requirementsRows] = await db.query('SELECT * FROM registration_requirements WHERE record_id = ?', [id]) as [any[], any];
       if (requirementsRows.length > 0) {
         registrationRequirements = requirementsRows[0];
-        console.log('Requisitos de inscripción encontrados:', registrationRequirements);
       }
     } catch (err) {
-      console.log('Error obteniendo requisitos de inscripción (tabla puede no existir):', err);
+      // Table may not exist
     }
     
-    // Obtener boleta de matrícula
+    // Get enrollment form
     let enrollmentForm = null;
     try {
       const [enrollmentRows] = await db.query('SELECT * FROM enrollment_form WHERE record_id = ?', [id]) as [any[], any];
       if (enrollmentRows.length > 0) {
         enrollmentForm = enrollmentRows[0];
-        console.log('Boleta de matrícula encontrada:', enrollmentForm);
       }
     } catch (err) {
-      console.log('Error obteniendo boleta de matrícula (tabla puede no existir):', err);
+      // Table may not exist
     }
     
-    // Obtener datos socioeconómicos
+    // Get socioeconomic data
     let socioeconomicData = null;
     try {
       const [socioeconomicRows] = await db.query('SELECT * FROM socioeconomic_data WHERE record_id = ?', [id]) as [any[], any];
       if (socioeconomicRows.length > 0) {
         socioeconomicData = socioeconomicRows[0];
-        console.log('Datos socioeconómicos encontrados:', socioeconomicData);
       }
     } catch (err) {
-      console.log('Error obteniendo datos socioeconómicos (tabla puede no existir):', err);
+      // Table may not exist
     }
     
-    // Obtener documentos
+    // Get documents
     let documents = [];
     try {
       const [documentsRows] = await db.query('SELECT * FROM record_documents WHERE record_id = ? ORDER BY uploaded_at DESC', [id]) as [any[], any];
       documents = documentsRows;
-      console.log('Documentos encontrados:', documents.length);
-      console.log('Detalle de documentos:', documents);
-      
-      // Log detallado de cada documento
-      documents.forEach((doc, index) => {
-        console.log(`Documento ${index + 1}:`, {
-          id: doc.id,
-          record_id: doc.record_id,
-          document_type: doc.document_type,
-          file_name: doc.file_name,
-          original_name: doc.original_name,
-          uploaded_at: doc.uploaded_at
-        });
-      });
     } catch (err) {
-      console.log('Error obteniendo documentos (tabla puede no existir):', err);
+      // Table may not exist
     }
     
-    // Obtener notas
+    // Get notes
     let notesRows = [];
     try {
       const [notesResult] = await db.query('SELECT * FROM record_notes WHERE record_id = ? ORDER BY created_at DESC', [id]) as [any[], any];
       notesRows = notesResult;
-      console.log('Notas encontradas:', notesRows.length);
     } catch (err) {
-      console.log('Error obteniendo notas (tabla puede no existir):', err);
+      // Table may not exist
     }
     
     const result = {
@@ -195,15 +171,14 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       notes: notesRows
     };
     
-    console.log('Resultado final:', result);
     return result;
   } catch (err) {
-    console.error('Error en getRecordWithDetails:', err);
+    console.error('Error in getRecordWithDetails:', err);
     throw err;
   }
 };
 
-// Obtener todos los expedientes con paginación y filtros
+// Get all records with pagination and filters
 export const getRecords = async (
   page = 1,
   limit = 10,
@@ -248,7 +223,7 @@ export const getRecords = async (
     [...params, limit, offset]
   ) as [any[], any];
 
-  // Transformar los datos para que coincidan con el tipo Record
+  // Transform data to match Record type
   const transformedRows = rows.map((row: any) => {
     const record: any = {
       id: row.id,
@@ -260,7 +235,7 @@ export const getRecords = async (
       created_by: row.created_by
     };
 
-    // Si hay datos personales, crear el objeto personal_data
+    // If personal data exists, create personal_data object
     if (row.full_name) {
       record.personal_data = {
         id: row.pd_id,
@@ -295,141 +270,104 @@ export const getRecords = async (
   return { records: transformedRows, total };
 };
 
-// Actualizar expediente
+// Update record
 export const updateRecord = async (id: number, data: Partial<Record>): Promise<void> => {
   const fields = Object.keys(data).map(key => `${key} = ?`).join(', ');
   const values = Object.values(data);
   await db.query(`UPDATE records SET ${fields} WHERE id = ?`, [...values, id]);
 };
 
-// Eliminar expediente
+// Delete record
 export const deleteRecord = async (id: number): Promise<void> => {
   try {
-    console.log('=== ELIMINANDO EXPEDIENTE ===');
-    console.log('Record ID:', id);
-    
-    // Primero eliminar las notas asociadas
+    // First delete associated notes
     try {
-      const [notesResult] = await db.query('DELETE FROM record_notes WHERE record_id = ?', [id]) as [any, any];
-      console.log('Notas eliminadas:', notesResult.affectedRows);
+      await db.query('DELETE FROM record_notes WHERE record_id = ?', [id]) as [any, any];
     } catch (err) {
-      console.log('Error eliminando notas (tabla puede no existir):', err);
+      // Table may not exist
     }
     
-    // Luego eliminar los datos personales
+    // Then delete personal data
     try {
-      const [personalDataResult] = await db.query('DELETE FROM personal_data WHERE record_id = ?', [id]) as [any, any];
-      console.log('Datos personales eliminados:', personalDataResult.affectedRows);
+      await db.query('DELETE FROM personal_data WHERE record_id = ?', [id]) as [any, any];
     } catch (err) {
-      console.log('Error eliminando datos personales:', err);
+      // Handle error
     }
     
-    // Finalmente eliminar el expediente
+    // Finally delete the record
     const [result] = await db.query('DELETE FROM records WHERE id = ?', [id]) as [any, any];
     
-    console.log('Resultado de la eliminación del expediente:', result);
-    
     if (result.affectedRows === 0) {
-      throw new Error(`No se encontró el expediente con ID ${id}`);
+      throw new Error(`Record with ID ${id} not found`);
     }
-    
-    console.log('Expediente eliminado exitosamente');
   } catch (err) {
-    console.error('Error en deleteRecord:', err);
+    console.error('Error in deleteRecord:', err);
     throw err;
   }
 };
 
-// Cambiar estado del expediente
+// Update record status
 export const updateRecordStatus = async (id: number, status: Record['status']): Promise<void> => {
   await db.query('UPDATE records SET status = ? WHERE id = ?', [status, id]);
 };
 
-// Aprobar fase 1
+// Approve phase 1
 export const approvePhase1 = async (id: number): Promise<void> => {
   try {
-    console.log('=== APROBANDO FASE 1 ===');
-    console.log('Record ID:', id);
-    
     const [result] = await db.query('UPDATE records SET status = ?, phase = ? WHERE id = ?', ['approved', 'phase2', id]) as [any, any];
     
-    console.log('Resultado de la actualización:', result);
-    
     if (result.affectedRows === 0) {
-      throw new Error(`No se encontró el expediente con ID ${id}`);
+      throw new Error(`Record with ID ${id} not found`);
     }
-    
-    console.log('Fase 1 aprobada exitosamente');
   } catch (err) {
-    console.error('Error en approvePhase1:', err);
+    console.error('Error in approvePhase1:', err);
     throw err;
   }
 };
 
-// Rechazar fase 1
+// Reject phase 1
 export const rejectPhase1 = async (id: number): Promise<void> => {
   try {
-    console.log('=== RECHAZANDO FASE 1 ===');
-    console.log('Record ID:', id);
-    
     const [result] = await db.query('UPDATE records SET status = ?, phase = ? WHERE id = ?', ['rejected', 'phase1', id]) as [any, any];
     
-    console.log('Resultado de la actualización:', result);
-    
     if (result.affectedRows === 0) {
-      throw new Error(`No se encontró el expediente con ID ${id}`);
+      throw new Error(`Record with ID ${id} not found`);
     }
-    
-    console.log('Fase 1 rechazada exitosamente');
   } catch (err) {
-    console.error('Error en rejectPhase1:', err);
+    console.error('Error in rejectPhase1:', err);
     throw err;
   }
 };
 
-// Aprobar expediente completo
+// Approve complete record
 export const approveRecord = async (id: number): Promise<void> => {
   try {
-    console.log('=== APROBANDO EXPEDIENTE COMPLETO ===');
-    console.log('Record ID:', id);
-    
     const [result] = await db.query('UPDATE records SET status = ?, phase = ? WHERE id = ?', ['active', 'completed', id]) as [any, any];
     
-    console.log('Resultado de la actualización:', result);
-    
     if (result.affectedRows === 0) {
-      throw new Error(`No se encontró el expediente con ID ${id}`);
+      throw new Error(`Record with ID ${id} not found`);
     }
-    
-    console.log('Expediente aprobado exitosamente');
   } catch (err) {
-    console.error('Error en approveRecord:', err);
+    console.error('Error in approveRecord:', err);
     throw err;
   }
 };
 
-// Rechazar expediente completo
+// Reject complete record
 export const rejectRecord = async (id: number): Promise<void> => {
   try {
-    console.log('=== RECHAZANDO EXPEDIENTE COMPLETO ===');
-    console.log('Record ID:', id);
-    
     const [result] = await db.query('UPDATE records SET status = ?, phase = ? WHERE id = ?', ['rejected', 'phase3', id]) as [any, any];
     
-    console.log('Resultado de la actualización:', result);
-    
     if (result.affectedRows === 0) {
-      throw new Error(`No se encontró el expediente con ID ${id}`);
+      throw new Error(`Record with ID ${id} not found`);
     }
-    
-    console.log('Expediente rechazado exitosamente');
   } catch (err) {
-    console.error('Error en rejectRecord:', err);
+    console.error('Error in rejectRecord:', err);
     throw err;
   }
 };
 
-// Obtener expediente del usuario actual
+// Get current user's record
 export const getUserRecord = async (userId: number): Promise<RecordWithDetails | null> => {
   const [rows] = await db.query('SELECT * FROM records WHERE created_by = ?', [userId]) as [Record[], any];
   
@@ -441,82 +379,60 @@ export const getUserRecord = async (userId: number): Promise<RecordWithDetails |
   return await getRecordWithDetails(record.id!);
 };
 
-// Verificar si cédula existe
+// Check if cedula exists
 export const checkCedulaExists = async (cedula: string): Promise<boolean> => {
   const [rows] = await db.query('SELECT id FROM personal_data WHERE cedula = ?', [cedula]) as [any[], any];
   return rows.length > 0;
 };
 
-// Agregar nota a un expediente
+// Add note to a record
 export const addNote = async (recordId: number, noteData: { note: string; type: string; created_by?: number }): Promise<void> => {
   try {
-    console.log('=== AGREGANDO NOTA ===');
-    console.log('Record ID:', recordId);
-    console.log('Note data:', noteData);
-    
-    const [result] = await db.query(
+    await db.query(
       'INSERT INTO record_notes (record_id, note, type, created_by) VALUES (?, ?, ?, ?)',
       [recordId, noteData.note, noteData.type, noteData.created_by]
     ) as [any, any];
-    
-    console.log('Resultado de la inserción de nota:', result);
-    console.log('Nota agregada exitosamente');
   } catch (err) {
-    console.error('Error en addNote:', err);
+    console.error('Error in addNote:', err);
     throw err;
   }
 };
 
-// Actualizar nota existente
+// Update existing note
 export const updateNote = async (noteId: number, noteData: { note: string; type?: string }): Promise<void> => {
   try {
-    console.log('=== ACTUALIZANDO NOTA ===');
-    console.log('Note ID:', noteId);
-    console.log('Note data:', noteData);
-    
     const [result] = await db.query(
       'UPDATE record_notes SET note = ?, type = ? WHERE id = ?',
       [noteData.note, noteData.type || 'note', noteId]
     ) as [any, any];
     
-    console.log('Resultado de la actualización de nota:', result);
-    
     if (result.affectedRows === 0) {
-      throw new Error(`No se encontró la nota con ID ${noteId}`);
+      throw new Error(`Note with ID ${noteId} not found`);
     }
-    
-    console.log('Nota actualizada exitosamente');
   } catch (err) {
-    console.error('Error en updateNote:', err);
+    console.error('Error in updateNote:', err);
     throw err;
   }
 };
 
-// Eliminar nota
+// Delete note
 export const deleteNote = async (noteId: number): Promise<void> => {
   try {
-    console.log('=== ELIMINANDO NOTA ===');
-    console.log('Note ID:', noteId);
-    
     const [result] = await db.query(
       'DELETE FROM record_notes WHERE id = ?',
       [noteId]
     ) as [any, any];
     
-    console.log('Resultado de la eliminación de nota:', result);
-    
     if (result.affectedRows === 0) {
-      throw new Error(`No se encontró la nota con ID ${noteId}`);
+      throw new Error(`Note with ID ${noteId} not found`);
     }
-    
-    console.log('Nota eliminada exitosamente');
   } catch (err) {
-    console.error('Error en deleteNote:', err);
+    console.error('Error in deleteNote:', err);
     throw err;
   }
 };
 
-// Obtener estadísticas de expedientes
+// Get record statistics
 export const getRecordStats = async (): Promise<any> => {
   const [totalRows] = await db.query('SELECT COUNT(*) as count FROM records') as [any[], any];
   const [pendingRows] = await db.query("SELECT COUNT(*) as count FROM records WHERE status = 'pending'") as [any[], any];
@@ -547,9 +463,9 @@ export const getRecordStats = async (): Promise<any> => {
   };
 };
 
-// ===== FUNCIONES PARA FASE 3 =====
+// ===== PHASE 3 FUNCTIONS =====
 
-// Helper function para limpiar valores
+// Helper function to clean values
 const cleanValue = (value: any): any => {
   if (value === 'null' || value === null || value === undefined) {
     return null;
@@ -560,21 +476,17 @@ const cleanValue = (value: any): any => {
   return value;
 };
 
-// Crear o actualizar datos de discapacidad
+// Create or update disability data
 export const createOrUpdateDisabilityData = async (recordId: number, disabilityData: any): Promise<void> => {
   try {
-    console.log('=== CREANDO/ACTUALIZANDO DATOS DE DISCAPACIDAD ===');
-    console.log('Record ID:', recordId);
-    console.log('Disability data:', disabilityData);
-    
-    // Verificar si ya existen datos de discapacidad
+    // Check if disability data already exists
     const [existingRows] = await db.query(
       'SELECT id FROM disability_data WHERE record_id = ?',
       [recordId]
     ) as [any[], any];
     
     if (existingRows.length > 0) {
-      // Actualizar datos existentes
+      // Update existing data
       await db.query(
         `UPDATE disability_data SET 
          disability_type = ?, medical_diagnosis = ?, insurance_type = ?, 
@@ -596,9 +508,8 @@ export const createOrUpdateDisabilityData = async (recordId: number, disabilityD
           recordId
         ]
       );
-      console.log('Datos de discapacidad actualizados');
     } else {
-      // Crear nuevos datos
+      // Create new data
       await db.query(
         `INSERT INTO disability_data 
          (record_id, disability_type, medical_diagnosis, insurance_type, biomechanical_benefit,
@@ -619,29 +530,24 @@ export const createOrUpdateDisabilityData = async (recordId: number, disabilityD
           cleanValue(disabilityData.observations)
         ]
       );
-      console.log('Datos de discapacidad creados');
     }
   } catch (err) {
-    console.error('Error en createOrUpdateDisabilityData:', err);
+    console.error('Error in createOrUpdateDisabilityData:', err);
     throw err;
   }
 };
 
-// Crear o actualizar requisitos de inscripción
+// Create or update registration requirements
 export const createOrUpdateRegistrationRequirements = async (recordId: number, requirements: any): Promise<void> => {
   try {
-    console.log('=== CREANDO/ACTUALIZANDO REQUISITOS DE INSCRIPCIÓN ===');
-    console.log('Record ID:', recordId);
-    console.log('Requirements:', requirements);
-    
-    // Verificar si ya existen requisitos
+    // Check if requirements already exist
     const [existingRows] = await db.query(
       'SELECT id FROM registration_requirements WHERE record_id = ?',
       [recordId]
     ) as [any[], any];
     
     if (existingRows.length > 0) {
-      // Actualizar requisitos existentes
+      // Update existing requirements
       await db.query(
         `UPDATE registration_requirements SET 
          medical_diagnosis_doc = ?, birth_certificate_doc = ?, family_cedulas_doc = ?, 
@@ -660,9 +566,8 @@ export const createOrUpdateRegistrationRequirements = async (recordId: number, r
           recordId
         ]
       );
-      console.log('Requisitos de inscripción actualizados');
     } else {
-      // Crear nuevos requisitos
+      // Create new requirements
       await db.query(
         `INSERT INTO registration_requirements 
          (record_id, medical_diagnosis_doc, birth_certificate_doc, family_cedulas_doc, 
@@ -681,29 +586,24 @@ export const createOrUpdateRegistrationRequirements = async (recordId: number, r
           cleanValue(requirements.affiliation_fee_paid)
         ]
       );
-      console.log('Requisitos de inscripción creados');
     }
   } catch (err) {
-    console.error('Error en createOrUpdateRegistrationRequirements:', err);
+    console.error('Error in createOrUpdateRegistrationRequirements:', err);
     throw err;
   }
 };
 
-// Crear o actualizar boleta de matrícula
+// Create or update enrollment form
 export const createOrUpdateEnrollmentForm = async (recordId: number, enrollmentData: any): Promise<void> => {
   try {
-    console.log('=== CREANDO/ACTUALIZANDO BOLETA DE MATRÍCULA ===');
-    console.log('Record ID:', recordId);
-    console.log('Enrollment data:', enrollmentData);
-    
-    // Verificar si ya existe boleta
+    // Check if enrollment form already exists
     const [existingRows] = await db.query(
       'SELECT id FROM enrollment_form WHERE record_id = ?',
       [recordId]
     ) as [any[], any];
     
     if (existingRows.length > 0) {
-      // Actualizar boleta existente
+      // Update existing form
       await db.query(
         `UPDATE enrollment_form SET 
          enrollment_date = ?, program_type = ?, special_needs = ?, 
@@ -718,9 +618,8 @@ export const createOrUpdateEnrollmentForm = async (recordId: number, enrollmentD
           recordId
         ]
       );
-      console.log('Boleta de matrícula actualizada');
     } else {
-      // Crear nueva boleta
+      // Create new form
       await db.query(
         `INSERT INTO enrollment_form 
          (record_id, enrollment_date, program_type, special_needs, emergency_contact, emergency_phone)
@@ -734,31 +633,23 @@ export const createOrUpdateEnrollmentForm = async (recordId: number, enrollmentD
           cleanValue(enrollmentData.emergency_phone)
         ]
       );
-      console.log('Boleta de matrícula creada');
     }
   } catch (err) {
-    console.error('Error en createOrUpdateEnrollmentForm:', err);
+    console.error('Error in createOrUpdateEnrollmentForm:', err);
     throw err;
   }
 };
 
-// Crear o actualizar ficha socioeconómica
+// Create or update socioeconomic data
 export const createOrUpdateSocioeconomicData = async (recordId: number, socioeconomicData: any): Promise<void> => {
   try {
-    console.log('=== CREANDO/ACTUALIZANDO FICHA SOCIOECONÓMICA ===');
-    console.log('Record ID:', recordId);
-    console.log('Socioeconomic data:', socioeconomicData);
-    console.log('Family income:', socioeconomicData.family_income);
-    console.log('Available services:', socioeconomicData.available_services);
-    console.log('Working family members:', socioeconomicData.working_family_members);
-    
-    // Verificar si ya existe ficha
+    // Check if socioeconomic data already exists
     const [existingRows] = await db.query(
       'SELECT id FROM socioeconomic_data WHERE record_id = ?',
       [recordId]
     ) as [any[], any];
     
-    // Preparar datos para inserción
+    // Prepare data for insertion
     const servicesJson = Array.isArray(socioeconomicData.available_services) 
       ? JSON.stringify(socioeconomicData.available_services) 
       : socioeconomicData.available_services;
@@ -767,11 +658,8 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
       ? JSON.stringify(socioeconomicData.working_family_members) 
       : socioeconomicData.working_family_members;
     
-    console.log('Services JSON:', servicesJson);
-    console.log('Working people JSON:', workingPeopleJson);
-    
     if (existingRows.length > 0) {
-      // Actualizar ficha existente
+      // Update existing data
       await db.query(
         `UPDATE socioeconomic_data SET 
          housing_type = ?, services = ?, family_income = ?, 
@@ -785,9 +673,8 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
           recordId
         ]
       );
-      console.log('Ficha socioeconómica actualizada');
     } else {
-      // Crear nueva ficha
+      // Create new data
       await db.query(
         `INSERT INTO socioeconomic_data 
          (record_id, housing_type, services, family_income, working_people)
@@ -800,39 +687,32 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
           cleanValue(workingPeopleJson)
         ]
       );
-      console.log('Ficha socioeconómica creada');
     }
   } catch (err) {
-    console.error('Error en createOrUpdateSocioeconomicData:', err);
+    console.error('Error in createOrUpdateSocioeconomicData:', err);
     throw err;
   }
 };
 
-// Crear documento
+// Create document
 export const createDocument = async (recordId: number, documentData: any): Promise<void> => {
   try {
-    console.log('=== CREANDO DOCUMENTO ===');
-    console.log('Record ID:', recordId);
-    console.log('Document data:', documentData);
-    
-         await db.query(
-       `INSERT INTO record_documents 
-        (record_id, document_type, file_path, file_name, file_size, original_name, uploaded_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-       [
-         recordId,
-         cleanValue(documentData.document_type),
-         cleanValue(documentData.file_path),
-         cleanValue(documentData.file_name),
-         cleanValue(documentData.file_size),
-         cleanValue(documentData.original_name),
-         cleanValue(documentData.uploaded_by) || null // Permitir NULL si no hay uploaded_by
-       ]
-     );
-    
-    console.log('Documento creado exitosamente');
+    await db.query(
+      `INSERT INTO record_documents 
+       (record_id, document_type, file_path, file_name, file_size, original_name, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        recordId,
+        cleanValue(documentData.document_type),
+        cleanValue(documentData.file_path),
+        cleanValue(documentData.file_name),
+        cleanValue(documentData.file_size),
+        cleanValue(documentData.original_name),
+        cleanValue(documentData.uploaded_by) || null // Allow NULL if no uploaded_by
+      ]
+    );
   } catch (err) {
-    console.error('Error en createDocument:', err);
+    console.error('Error in createDocument:', err);
     throw err;
   }
 }; 

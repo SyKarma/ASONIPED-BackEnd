@@ -3,100 +3,69 @@ import * as RecordModel from '../../models/records/record.model';
 import * as PersonalDataModel from '../../models/records/personal_data.model';
 import { db } from '../../db';
 
-// Crear nuevo expediente
+// Create new record
 export const createRecord = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('=== CREANDO EXPEDIENTE ===');
-    console.log('req.user:', (req as any).user);
-    console.log('req.body:', req.body);
-    console.log('req.headers:', req.headers);
-    
     const { personal_data, ...recordData } = req.body;
     const userId = (req as any).user?.userId || (req as any).user?.id;
     
-    console.log('User ID para crear expediente:', userId);
-    console.log('Datos personales:', personal_data);
-    console.log('Record data:', recordData);
-    
     if (!userId) {
-      console.log('ERROR: No hay user ID');
-      res.status(401).json({ error: 'Usuario no autenticado' });
+      res.status(401).json({ error: 'User not authenticated' });
       return;
     }
     
-    // Crear el expediente principal
-    console.log('Llamando a RecordModel.createRecord con:', {
-      ...recordData,
-      created_by: userId
-    });
-    
+    // Create main record
     const recordId = await RecordModel.createRecord({
       ...recordData,
-      status: 'pending', // Cambiar a pending cuando se envía
+      status: 'pending',
       created_by: userId
     });
     
-    console.log('Expediente creado con ID:', recordId);
-    
-    // Si se proporcionan datos personales, crearlos
+    // Create personal data if provided
     if (personal_data) {
-      console.log('Creando datos personales...');
-      console.log('Datos personales a crear:', {
-        ...personal_data,
-        record_id: recordId
-      });
-      
       try {
         await PersonalDataModel.createPersonalData({
           ...personal_data,
           record_id: recordId
         });
-        console.log('Datos personales creados exitosamente');
       } catch (personalDataError) {
-        console.error('ERROR creando datos personales:', personalDataError);
-        console.error('Error stack:', (personalDataError as Error).stack);
+        console.error('ERROR creating personal data:', personalDataError);
         throw personalDataError;
       }
-    } else {
-      console.log('No se proporcionaron datos personales');
     }
     
-    console.log('=== EXPEDIENTE CREADO EXITOSAMENTE ===');
     res.status(201).json({ 
-      message: 'Expediente creado exitosamente',
+      message: 'Record created successfully',
       record_id: recordId
     });
   } catch (err) {
     console.error('Error creating record:', err);
-    console.error('Error stack:', (err as Error).stack);
-    console.error('Error type:', typeof err);
-    console.error('Error constructor:', err?.constructor?.name);
     res.status(500).json({ 
-      error: 'Error creando expediente',
+      error: 'Error creating record',
       details: (err as Error).message || String(err)
     });
   }
 };
 
-// Obtener expediente por ID
+// Get record by ID
 export const getRecordById = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const record = await RecordModel.getRecordWithDetails(id);
     
     if (!record) {
-      res.status(404).json({ error: 'Expediente no encontrado' });
+      res.status(404).json({ error: 'Record not found' });
       return;
     }
     
     res.json(record);
   } catch (err) {
     console.error('Error getting record:', err);
-    res.status(500).json({ error: 'Error obteniendo expediente' });
+    res.status(500).json({ error: 'Error getting record' });
   }
 };
 
-// Obtener todos los expedientes con filtros
+// Get all records with filters
 export const getRecords = async (req: Request, res: Response): Promise<void> => {
   try {
     const page = parseInt(req.query.page as string) || 1;
@@ -116,20 +85,20 @@ export const getRecords = async (req: Request, res: Response): Promise<void> => 
     });
   } catch (err) {
     console.error('Error getting records:', err);
-    res.status(500).json({ error: 'Error obteniendo expedientes' });
+    res.status(500).json({ error: 'Error getting records' });
   }
 };
 
-// Actualizar expediente
+// Update record
 export const updateRecord = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const { personal_data, ...recordData } = req.body;
     
-    // Actualizar expediente principal
+    // Update main record
     await RecordModel.updateRecord(id, recordData);
     
-    // Actualizar datos personales si se proporcionan
+    // Update personal data if provided
     if (personal_data) {
       const existingPersonalData = await PersonalDataModel.getPersonalDataByRecordId(id);
       
@@ -143,43 +112,37 @@ export const updateRecord = async (req: Request, res: Response): Promise<void> =
       }
     }
     
-    res.json({ message: 'Expediente actualizado exitosamente' });
+    res.json({ message: 'Record updated successfully' });
   } catch (err) {
     console.error('Error updating record:', err);
-    res.status(500).json({ error: 'Error actualizando expediente' });
+    res.status(500).json({ error: 'Error updating record' });
   }
 };
 
-// Completar expediente (Fase 3)
+// Complete record (Phase 3)
 export const completeRecord = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('=== COMPLETANDO EXPEDIENTE ===');
     const id = parseInt(req.params.id);
     
     if (!id || isNaN(id)) {
-      res.status(400).json({ error: 'ID de expediente inválido' });
+      res.status(400).json({ error: 'Invalid record ID' });
       return;
     }
     
-    console.log('Record ID:', id);
-    console.log('Request body:', req.body);
-    console.log('Files:', req.files);
-    
-    // Verificar que el expediente existe y está en fase 2
+    // Verify record exists and is in phase 2
     const existingRecord = await RecordModel.getRecordById(id);
     if (!existingRecord) {
-      res.status(404).json({ error: 'Expediente no encontrado' });
+      res.status(404).json({ error: 'Record not found' });
       return;
     }
     
     if (existingRecord.phase !== 'phase2') {
-      res.status(400).json({ error: 'El expediente debe estar en Fase 2 para ser completado' });
+      res.status(400).json({ error: 'Record must be in Phase 2 to be completed' });
       return;
     }
     
-    // Procesar datos del formulario
+    // Process form data
     const formData = req.body.data ? JSON.parse(req.body.data) : req.body;
-    console.log('Parsed form data:', formData);
     
     const {
       disability_information,
@@ -187,126 +150,108 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
       documentation_requirements
     } = formData;
     
-    // Actualizar expediente a fase 3
+    // Update record to phase 3
     await RecordModel.updateRecord(id, {
       phase: 'phase3',
       status: 'pending'
     });
     
-    // Crear/actualizar información de discapacidad
+    // Create/update disability information
     if (disability_information) {
       await RecordModel.createOrUpdateDisabilityData(id, disability_information);
     }
     
-    // Crear/actualizar requisitos de documentación
+    // Create/update documentation requirements
     if (documentation_requirements) {
       await RecordModel.createOrUpdateRegistrationRequirements(id, documentation_requirements);
     }
     
-    // Crear/actualizar información socioeconómica
+    // Create/update socioeconomic information
     if (socioeconomic_information) {
       await RecordModel.createOrUpdateSocioeconomicData(id, socioeconomic_information);
     }
     
-         // Procesar documentos si existen
-     if (req.files && Array.isArray(req.files)) {
-       console.log('Procesando archivos subidos:', req.files.length);
-       
-       for (const file of req.files) {
-        console.log('Procesando archivo:', file.originalname);
+    // Process documents if they exist
+    if (req.files && Array.isArray(req.files)) {
+      for (const file of req.files) {
         const userId = (req as any).user?.userId || (req as any).user?.id;
         
-                 // Mapear el nombre del campo del frontend al tipo de documento del backend
-         const mapDocumentType = (fieldname: string, originalName: string): string => {
-           console.log('Mapeando documento - fieldname:', fieldname, 'originalName:', originalName);
-           
-           // Mapeo directo por fieldname primero
-           const fieldnameMapping: { [key: string]: string } = {
-             'dictamen_medico': 'medical_diagnosis',
-             'constancia_nacimiento': 'birth_certificate',
-             'copia_cedula': 'cedula',
-             'copias_cedulas_familia': 'cedula',
-             'foto_pasaporte': 'photo',
-             'constancia_pension_ccss': 'pension_certificate',
-             'constancia_pension_alimentaria': 'pension_certificate',
-             'constancia_estudio': 'study_certificate',
-             'cuenta_banco_nacional': 'other'
-           };
-           
-           // Si tenemos un fieldname específico, usarlo
-           if (fieldname && fieldname !== 'documents' && fieldnameMapping[fieldname]) {
-             console.log('Mapeo por fieldname:', fieldname, '->', fieldnameMapping[fieldname]);
-             return fieldnameMapping[fieldname];
-           }
-           
-           // Si el fieldname es genérico, intentar extraer el tipo del nombre del archivo
-           if (fieldname === 'documents' || fieldname === '') {
-             // Primero, verificar si el nombre del archivo ya incluye el tipo (formato: tipo_nombrearchivo.pdf)
-             const fileNameParts = originalName.split('_');
-             if (fileNameParts.length > 1) {
-               const possibleType = fileNameParts[0];
-               if (fieldnameMapping[possibleType]) {
-                 console.log('Detectado tipo por prefijo en nombre:', possibleType, '->', fieldnameMapping[possibleType]);
-                 return fieldnameMapping[possibleType];
-               }
-             }
-             
-             // Buscar patrones en el nombre del archivo
-             const fileName = originalName.toLowerCase();
-             
-             // Patrones para identificar tipos de documentos
-             if (fileName.includes('dictamen') || fileName.includes('medico') || fileName.includes('diagnostico') || fileName.includes('diagnóstico')) {
-               console.log('Detectado como dictamen médico por nombre de archivo');
-               return 'medical_diagnosis';
-             }
-             if (fileName.includes('nacimiento') || fileName.includes('birth') || fileName.includes('partida')) {
-               console.log('Detectado como constancia de nacimiento por nombre de archivo');
-               return 'birth_certificate';
-             }
-             if (fileName.includes('cedula') || fileName.includes('identificacion') || fileName.includes('identificación') || fileName.includes('dni') || fileName.includes('carnet')) {
-               console.log('Detectado como cédula por nombre de archivo');
-               return 'cedula';
-             }
-             if (fileName.includes('foto') || fileName.includes('photo') || fileName.includes('imagen') || fileName.includes('retrato')) {
-               console.log('Detectado como foto por nombre de archivo');
-               return 'photo';
-             }
-             if (fileName.includes('pension') || fileName.includes('ccss') || fileName.includes('pensión')) {
-               console.log('Detectado como constancia de pensión por nombre de archivo');
-               return 'pension_certificate';
-             }
-             if (fileName.includes('estudio') || fileName.includes('study') || fileName.includes('academico') || fileName.includes('académico')) {
-               console.log('Detectado como constancia de estudio por nombre de archivo');
-               return 'study_certificate';
-             }
-             if (fileName.includes('socioeconomica') || fileName.includes('socioeconómica') || fileName.includes('beca') || fileName.includes('solicitud')) {
-               console.log('Detectado como formulario socioeconómico por nombre de archivo');
-               return 'other';
-             }
-             
-             // Intentar detectar por extensión y tamaño (heurística)
-             if (fileName.endsWith('.pdf')) {
-               // Si es un PDF pequeño, podría ser una cédula
-               if (originalName.includes('cedula') || originalName.includes('identificacion')) {
-                 console.log('Detectado como cédula por heurística');
-                 return 'cedula';
-               }
-               // Si es un PDF con números, podría ser una orden o documento oficial
-               if (/\d{4,}/.test(originalName)) {
-                 console.log('Detectado como documento oficial por heurística (números)');
-                 return 'other';
-               }
-             }
-           }
-           
-           console.log('No se pudo mapear, usando tipo "other"');
-           return 'other';
-         };
+        // Map frontend field name to backend document type
+        const mapDocumentType = (fieldname: string, originalName: string): string => {
+          // Direct mapping by fieldname first
+          const fieldnameMapping: { [key: string]: string } = {
+            'dictamen_medico': 'medical_diagnosis',
+            'constancia_nacimiento': 'birth_certificate',
+            'copia_cedula': 'cedula',
+            'copias_cedulas_familia': 'cedula',
+            'foto_pasaporte': 'photo',
+            'constancia_pension_ccss': 'pension_certificate',
+            'constancia_pension_alimentaria': 'pension_certificate',
+            'constancia_estudio': 'study_certificate',
+            'cuenta_banco_nacional': 'other'
+          };
+          
+          // If we have a specific fieldname, use it
+          if (fieldname && fieldname !== 'documents' && fieldnameMapping[fieldname]) {
+            return fieldnameMapping[fieldname];
+          }
+          
+          // If fieldname is generic, try to extract type from filename
+          if (fieldname === 'documents' || fieldname === '') {
+            // First, check if filename already includes type (format: type_filename.pdf)
+            const fileNameParts = originalName.split('_');
+            if (fileNameParts.length > 1) {
+              const possibleType = fileNameParts[0];
+              if (fieldnameMapping[possibleType]) {
+                return fieldnameMapping[possibleType];
+              }
+            }
+            
+            // Search for patterns in filename
+            const fileName = originalName.toLowerCase();
+            
+            // Patterns to identify document types
+            if (fileName.includes('dictamen') || fileName.includes('medico') || fileName.includes('diagnostico') || fileName.includes('diagnóstico')) {
+              return 'medical_diagnosis';
+            }
+            if (fileName.includes('nacimiento') || fileName.includes('birth') || fileName.includes('partida')) {
+              return 'birth_certificate';
+            }
+            if (fileName.includes('cedula') || fileName.includes('identificacion') || fileName.includes('identificación') || fileName.includes('dni') || fileName.includes('carnet')) {
+              return 'cedula';
+            }
+            if (fileName.includes('foto') || fileName.includes('photo') || fileName.includes('imagen') || fileName.includes('retrato')) {
+              return 'photo';
+            }
+            if (fileName.includes('pension') || fileName.includes('ccss') || fileName.includes('pensión')) {
+              return 'pension_certificate';
+            }
+            if (fileName.includes('estudio') || fileName.includes('study') || fileName.includes('academico') || fileName.includes('académico')) {
+              return 'study_certificate';
+            }
+            if (fileName.includes('socioeconomica') || fileName.includes('socioeconómica') || fileName.includes('beca') || fileName.includes('solicitud')) {
+              return 'other';
+            }
+            
+            // Try to detect by extension and size (heuristic)
+            if (fileName.endsWith('.pdf')) {
+              // If it's a small PDF, it could be an ID card
+              if (originalName.includes('cedula') || originalName.includes('identificacion')) {
+                return 'cedula';
+              }
+              // If it's a PDF with numbers, it could be an official order or document
+              if (/\d{4,}/.test(originalName)) {
+                return 'other';
+              }
+            }
+          }
+          
+          return 'other';
+        };
         
         const documentType = mapDocumentType(file.fieldname || '', file.originalname || '');
-        console.log('Mapeando documento:', { fieldname: file.fieldname, originalName: file.originalname, documentType });
         
-        // Crear documento para cualquier usuario (no solo admin)
+        // Create document for any user (not just admin)
         await RecordModel.createDocument(id, {
           document_type: documentType,
           file_path: file.path || '',
@@ -315,98 +260,91 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
           original_name: file.originalname || '',
           uploaded_by: userId
         });
-        console.log('Documento creado exitosamente:', file.originalname, 'como tipo:', documentType);
       }
-    } else {
-      console.log('No se subieron archivos');
     }
     
-    // Agregar nota de completación (solo si el usuario es admin)
+    // Add completion note (only if user is admin)
     try {
       const userId = (req as any).user?.userId || (req as any).user?.id;
-      // Verificar si el usuario existe en la tabla admins
+      // Check if user exists in admins table
       const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
       
       if (adminRows.length > 0) {
         await RecordModel.addNote(id, {
-          note: 'Expediente completado - Fase 3',
+          note: 'Record completed - Phase 3',
           type: 'milestone',
           created_by: userId
         });
-        console.log('Nota de completación agregada exitosamente');
-      } else {
-        console.log('Usuario no es admin, omitiendo nota de completación');
       }
     } catch (noteError) {
-      console.error('Error agregando nota de completación:', noteError);
-      // No fallar la operación si la nota falla
+      console.error('Error adding completion note:', noteError);
+      // Don't fail operation if note fails
     }
     
-    console.log('=== EXPEDIENTE COMPLETADO EXITOSAMENTE ===');
     res.json({ 
-      message: 'Expediente completado exitosamente',
+      message: 'Record completed successfully',
       record_id: id
     });
   } catch (err) {
     console.error('Error completing record:', err);
     res.status(500).json({ 
-      error: 'Error completando expediente',
+      error: 'Error completing record',
       details: (err as Error).message || String(err)
     });
   }
 };
 
-// Eliminar expediente
+// Delete record
 export const deleteRecord = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     
     if (!id || isNaN(id)) {
-      res.status(400).json({ error: 'ID de expediente inválido' });
+      res.status(400).json({ error: 'Invalid record ID' });
       return;
     }
     
     await RecordModel.deleteRecord(id);
     
-    res.json({ message: 'Expediente eliminado exitosamente' });
+    res.json({ message: 'Record deleted successfully' });
   } catch (err) {
     console.error('Error deleting record:', err);
-    res.status(500).json({ error: 'Error eliminando expediente' });
+    res.status(500).json({ error: 'Error deleting record' });
   }
 };
 
-// Cambiar estado del expediente
+// Update record status
 export const updateRecordStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const { status } = req.body;
     
     if (!status || !['draft', 'pending', 'approved', 'rejected', 'active', 'inactive'].includes(status)) {
-      res.status(400).json({ error: 'Estado inválido' });
+      res.status(400).json({ error: 'Invalid status' });
       return;
     }
     
     await RecordModel.updateRecordStatus(id, status);
     
-    res.json({ message: 'Estado del expediente actualizado exitosamente' });
+    res.json({ message: 'Record status updated successfully' });
   } catch (err) {
     console.error('Error updating record status:', err);
-    res.status(500).json({ error: 'Error actualizando estado del expediente' });
+    res.status(500).json({ error: 'Error updating record status' });
   }
 };
 
-// Obtener estadísticas de expedientes
+// Get record statistics
 export const getRecordStats = async (req: Request, res: Response): Promise<void> => {
   try {
     const stats = await RecordModel.getRecordStats();
     res.json(stats);
   } catch (err) {
     console.error('Error getting record stats:', err);
-    res.status(500).json({ error: 'Error obteniendo estadísticas' });
+    res.status(500).json({ error: 'Error getting statistics' });
   }
 };
 
-// Buscar expediente por cédula
+// Search record by cedula
 export const searchRecordByCedula = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cedula } = req.params;
@@ -414,7 +352,7 @@ export const searchRecordByCedula = async (req: Request, res: Response): Promise
     const personalData = await PersonalDataModel.searchByCedula(cedula);
     
     if (!personalData) {
-      res.status(404).json({ error: 'Expediente no encontrado' });
+      res.status(404).json({ error: 'Record not found' });
       return;
     }
     
@@ -423,11 +361,11 @@ export const searchRecordByCedula = async (req: Request, res: Response): Promise
     res.json(record);
   } catch (err) {
     console.error('Error searching record by cedula:', err);
-    res.status(500).json({ error: 'Error buscando expediente' });
+    res.status(500).json({ error: 'Error searching record' });
   }
 };
 
-// Verificar si una cédula existe
+// Check if cedula exists
 export const checkCedulaExists = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cedula } = req.params;
@@ -438,53 +376,47 @@ export const checkCedulaExists = async (req: Request, res: Response): Promise<vo
     res.json({ exists });
   } catch (err) {
     console.error('Error checking cedula:', err);
-    res.status(500).json({ error: 'Error verificando cédula' });
+    res.status(500).json({ error: 'Error checking cedula' });
   }
 };
 
-// Obtener expediente del usuario actual
+// Get current user's record
 export const getMyRecord = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.userId || (req as any).user?.id;
     
     if (!userId) {
-      res.status(401).json({ error: 'Usuario no autenticado' });
+      res.status(401).json({ error: 'User not authenticated' });
       return;
     }
     
     const record = await RecordModel.getUserRecord(userId);
     
     if (!record) {
-      res.status(404).json({ error: 'No se encontró expediente para este usuario' });
+      res.status(404).json({ error: 'No record found for this user' });
       return;
     }
     
     res.json(record);
   } catch (err) {
     console.error('Error getting user record:', err);
-    res.status(500).json({ error: 'Error obteniendo expediente del usuario' });
+    res.status(500).json({ error: 'Error getting user record' });
   }
 };
 
-// Aprobar fase 1
+// Approve phase 1
 export const approvePhase1 = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('=== CONTROLADOR: APROBANDO FASE 1 ===');
     const id = parseInt(req.params.id);
     const { comment } = req.body;
     
-    console.log('ID:', id);
-    console.log('Comment:', comment);
-    console.log('User:', (req as any).user);
-    
     await RecordModel.approvePhase1(id);
-    console.log('Fase 1 aprobada en el modelo');
     
-    // Agregar comentario si se proporciona (solo si el usuario es admin)
+    // Add comment if provided (only if user is admin)
     if (comment) {
       try {
         const userId = (req as any).user?.userId || (req as any).user?.id;
-        // Verificar si el usuario existe en la tabla admins
+        // Check if user exists in admins table
         const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
         
         if (adminRows.length > 0) {
@@ -493,24 +425,21 @@ export const approvePhase1 = async (req: Request, res: Response): Promise<void> 
             type: 'activity',
             created_by: userId
           });
-          console.log('Comentario agregado exitosamente');
-        } else {
-          console.log('Usuario no es admin, omitiendo comentario');
         }
       } catch (noteError) {
-        console.error('Error agregando comentario:', noteError);
-        // No fallar la operación si el comentario falla
+        console.error('Error adding comment:', noteError);
+        // Don't fail operation if comment fails
       }
     }
     
-    res.json({ message: 'Fase 1 aprobada exitosamente' });
+    res.json({ message: 'Phase 1 approved successfully' });
   } catch (err) {
     console.error('Error approving phase 1:', err);
-    res.status(500).json({ error: 'Error aprobando fase 1' });
+    res.status(500).json({ error: 'Error approving phase 1' });
   }
 };
 
-// Rechazar fase 1
+// Reject phase 1
 export const rejectPhase1 = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
@@ -518,11 +447,11 @@ export const rejectPhase1 = async (req: Request, res: Response): Promise<void> =
     
     await RecordModel.rejectPhase1(id);
     
-    // Agregar comentario si se proporciona (solo si el usuario es admin)
+    // Add comment if provided (only if user is admin)
     if (comment) {
       try {
         const userId = (req as any).user?.userId || (req as any).user?.id;
-        // Verificar si el usuario existe en la tabla admins
+        // Check if user exists in admins table
         const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
         
         if (adminRows.length > 0) {
@@ -531,24 +460,21 @@ export const rejectPhase1 = async (req: Request, res: Response): Promise<void> =
             type: 'activity',
             created_by: userId
           });
-          console.log('Comentario de rechazo agregado exitosamente');
-        } else {
-          console.log('Usuario no es admin, omitiendo comentario de rechazo');
         }
       } catch (noteError) {
-        console.error('Error agregando comentario de rechazo:', noteError);
-        // No fallar la operación si el comentario falla
+        console.error('Error adding rejection comment:', noteError);
+        // Don't fail operation if comment fails
       }
     }
     
-    res.json({ message: 'Fase 1 rechazada exitosamente' });
+    res.json({ message: 'Phase 1 rejected successfully' });
   } catch (err) {
     console.error('Error rejecting phase 1:', err);
-    res.status(500).json({ error: 'Error rechazando fase 1' });
+    res.status(500).json({ error: 'Error rejecting phase 1' });
   }
 };
 
-// Aprobar expediente completo
+// Approve complete record
 export const approveRecord = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
@@ -556,11 +482,11 @@ export const approveRecord = async (req: Request, res: Response): Promise<void> 
     
     await RecordModel.approveRecord(id);
     
-    // Agregar comentario si se proporciona (solo si el usuario es admin)
+    // Add comment if provided (only if user is admin)
     if (comment) {
       try {
         const userId = (req as any).user?.userId || (req as any).user?.id;
-        // Verificar si el usuario existe en la tabla admins
+        // Check if user exists in admins table
         const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
         
         if (adminRows.length > 0) {
@@ -569,24 +495,21 @@ export const approveRecord = async (req: Request, res: Response): Promise<void> 
             type: 'milestone',
             created_by: userId
           });
-          console.log('Comentario de aprobación agregado exitosamente');
-        } else {
-          console.log('Usuario no es admin, omitiendo comentario de aprobación');
         }
       } catch (noteError) {
-        console.error('Error agregando comentario de aprobación:', noteError);
-        // No fallar la operación si el comentario falla
+        console.error('Error adding approval comment:', noteError);
+        // Don't fail operation if comment fails
       }
     }
     
-    res.json({ message: 'Expediente aprobado exitosamente' });
+    res.json({ message: 'Record approved successfully' });
   } catch (err) {
     console.error('Error approving record:', err);
-    res.status(500).json({ error: 'Error aprobando expediente' });
+    res.status(500).json({ error: 'Error approving record' });
   }
 };
 
-// Rechazar expediente completo
+// Reject complete record
 export const rejectRecord = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
@@ -594,11 +517,11 @@ export const rejectRecord = async (req: Request, res: Response): Promise<void> =
     
     await RecordModel.rejectRecord(id);
     
-    // Agregar comentario si se proporciona (solo si el usuario es admin)
+    // Add comment if provided (only if user is admin)
     if (comment) {
       try {
         const userId = (req as any).user?.userId || (req as any).user?.id;
-        // Verificar si el usuario existe en la tabla admins
+        // Check if user exists in admins table
         const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
         
         if (adminRows.length > 0) {
@@ -607,24 +530,21 @@ export const rejectRecord = async (req: Request, res: Response): Promise<void> =
             type: 'activity',
             created_by: userId
           });
-          console.log('Comentario de rechazo agregado exitosamente');
-        } else {
-          console.log('Usuario no es admin, omitiendo comentario de rechazo');
         }
       } catch (noteError) {
-        console.error('Error agregando comentario de rechazo:', noteError);
-        // No fallar la operación si el comentario falla
+        console.error('Error adding rejection comment:', noteError);
+        // Don't fail operation if comment fails
       }
     }
     
-    res.json({ message: 'Expediente rechazado exitosamente' });
+    res.json({ message: 'Record rejected successfully' });
   } catch (err) {
     console.error('Error rejecting record:', err);
-    res.status(500).json({ error: 'Error rechazando expediente' });
+    res.status(500).json({ error: 'Error rejecting record' });
   }
 };
 
-// Verificar disponibilidad de cédula
+// Check cedula availability
 export const checkCedulaAvailability = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cedula } = req.params;
@@ -633,70 +553,63 @@ export const checkCedulaAvailability = async (req: Request, res: Response): Prom
     const exists = await PersonalDataModel.checkCedulaExists(cedula, excludeRecordId);
     
     if (exists) {
-      res.status(409).json({ error: 'Cédula ya registrada' });
+      res.status(409).json({ error: 'Cedula already registered' });
       return;
     }
     
     res.json({ available: true });
   } catch (err) {
     console.error('Error checking cedula availability:', err);
-    res.status(500).json({ error: 'Error verificando disponibilidad de cédula' });
+    res.status(500).json({ error: 'Error checking cedula availability' });
   }
 };
 
-// Actualizar comentario
+// Update note
 export const updateNote = async (req: Request, res: Response): Promise<void> => {
   try {
     const noteId = parseInt(req.params.noteId);
     const { note, type } = req.body;
     
     if (!note || note.trim() === '') {
-      res.status(400).json({ error: 'El comentario no puede estar vacío' });
+      res.status(400).json({ error: 'Note cannot be empty' });
       return;
     }
     
     await RecordModel.updateNote(noteId, { note: note.trim(), type });
     
-    res.json({ message: 'Comentario actualizado exitosamente' });
+    res.json({ message: 'Note updated successfully' });
   } catch (err) {
     console.error('Error updating note:', err);
-    res.status(500).json({ error: 'Error actualizando comentario' });
+    res.status(500).json({ error: 'Error updating note' });
   }
 };
 
-// Eliminar comentario
+// Delete note
 export const deleteNote = async (req: Request, res: Response): Promise<void> => {
   try {
     const noteId = parseInt(req.params.noteId);
     
     await RecordModel.deleteNote(noteId);
     
-    res.json({ message: 'Comentario eliminado exitosamente' });
+    res.json({ message: 'Note deleted successfully' });
   } catch (err) {
     console.error('Error deleting note:', err);
-    res.status(500).json({ error: 'Error eliminando comentario' });
+    res.status(500).json({ error: 'Error deleting note' });
   }
 };
 
-
-
-// Función temporal para verificar la estructura de la base de datos
+// Temporary function to verify database structure
 export const debugDatabase = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('=== DEBUG DATABASE ===');
-    
-    // Verificar tabla records
+    // Check records table
     const [recordsStructure] = await db.query('DESCRIBE records');
-    console.log('Estructura de tabla records:', recordsStructure);
     
-    // Verificar tabla personal_data
+    // Check personal_data table
     try {
       const [personalDataStructure] = await db.query('DESCRIBE personal_data');
-      console.log('Estructura de tabla personal_data:', personalDataStructure);
       
-      // Verificar si hay registros en personal_data
+      // Check if there are records in personal_data
       const [personalDataCount] = await db.query('SELECT COUNT(*) as count FROM personal_data');
-      console.log('Cantidad de registros en personal_data:', personalDataCount);
       
       res.json({ 
         message: 'Debug info logged to console',
@@ -706,11 +619,8 @@ export const debugDatabase = async (req: Request, res: Response): Promise<void> 
         personalDataExists: true
       });
     } catch (personalDataError) {
-      console.log('ERROR: Tabla personal_data no existe:', (personalDataError as Error).message);
-      
-      // Verificar si hay registros en records
+      // Check if there are records in records
       const [recordsCount] = await db.query('SELECT COUNT(*) as count FROM records');
-      console.log('Cantidad de registros en records:', recordsCount);
       
       res.json({ 
         message: 'Debug info logged to console',
@@ -721,31 +631,26 @@ export const debugDatabase = async (req: Request, res: Response): Promise<void> 
       });
     }
   } catch (err) {
-    console.error('Error en debugDatabase:', err);
-    res.status(500).json({ error: 'Error obteniendo debug info', details: (err as Error).message || err });
+    console.error('Error in debugDatabase:', err);
+    res.status(500).json({ error: 'Error getting debug info', details: (err as Error).message || err });
   }
 };
 
-// Función simple para verificar si personal_data existe
+// Simple function to check if personal_data exists
 export const checkPersonalDataTable = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('=== CHECKING PERSONAL_DATA TABLE ===');
-    
     const [result] = await db.query('SHOW TABLES LIKE "personal_data"');
     const exists = (result as any[]).length > 0;
     
-    console.log('Tabla personal_data existe:', exists);
-    
     if (exists) {
       const [structure] = await db.query('DESCRIBE personal_data');
-      console.log('Estructura de personal_data:', structure);
       res.json({ exists: true, structure });
     } else {
-      res.json({ exists: false, message: 'Tabla personal_data no existe' });
+      res.json({ exists: false, message: 'personal_data table does not exist' });
     }
   } catch (err) {
     console.error('Error checking personal_data table:', err);
-    res.status(500).json({ error: 'Error verificando tabla', details: (err as Error).message });
+    res.status(500).json({ error: 'Error checking table', details: (err as Error).message });
   }
 };
 

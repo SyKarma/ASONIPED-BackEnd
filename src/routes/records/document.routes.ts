@@ -6,7 +6,7 @@ import { getFileUrl, deleteFile } from '../../utils/fileUtils';
 
 const router = express.Router();
 
-// Upload de múltiples documentos para un expediente
+// Upload multiple documents for a record
 router.post('/:recordId/documents', 
   authenticateToken,
   uploadRecordDocuments,
@@ -26,20 +26,17 @@ router.post('/:recordId/documents',
         url: getFileUrl(recordId, file.filename)
       }));
       
-      // Aquí guardarías la información en la base de datos
-      // await saveDocumentsToDatabase(recordId, uploadedFiles);
-      
       res.json({
-        message: 'Documentos subidos exitosamente',
+        message: 'Documents uploaded successfully',
         files: uploadedFiles
       });
     } catch (error) {
-      res.status(500).json({ error: 'Error subiendo documentos' });
+      res.status(500).json({ error: 'Error uploading documents' });
     }
   }
 );
 
-// Upload de un solo documento
+// Upload single document
 router.post('/:recordId/document',
   authenticateToken,
   uploadSingleDocument,
@@ -60,20 +57,20 @@ router.post('/:recordId/document',
         url: getFileUrl(recordId, file.filename)
       };
       
-      // Aquí guardarías la información en la base de datos
+      // Here you would save the information to the database
       // await saveDocumentToDatabase(recordId, fileInfo);
       
       res.json({
-        message: 'Documento subido exitosamente',
+        message: 'Document uploaded successfully',
         file: fileInfo
       });
     } catch (error) {
-      res.status(500).json({ error: 'Error subiendo documento' });
+      res.status(500).json({ error: 'Error uploading document' });
     }
   }
 );
 
-// Eliminar documento
+// Delete document
 router.delete('/:recordId/documents/:fileName',
   authenticateToken,
   async (req: any, res: any) => {
@@ -84,15 +81,14 @@ router.delete('/:recordId/documents/:fileName',
       const deleted = deleteFile(filePath);
       
       if (deleted) {
-        // Aquí eliminarías la información de la base de datos
-        // await deleteDocumentFromDatabase(recordId, fileName);
+
         
-        res.json({ message: 'Documento eliminado exitosamente' });
+        res.json({ message: 'Document deleted successfully' });
       } else {
-        res.status(404).json({ error: 'Documento no encontrado' });
+        res.status(404).json({ error: 'Document not found' });
       }
     } catch (error) {
-      res.status(500).json({ error: 'Error eliminando documento' });
+      res.status(500).json({ error: 'Error deleting document' });
     }
   }
 );

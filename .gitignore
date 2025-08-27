@@ -1,2 +1,12 @@
+# Archivos de entorno
 .env
-.env
+
+
+# CARPETA DE UPLOADS - NO RASTREAR NADA
+uploads/
+uploads/*
+**/uploads/
+uploads/records/
+uploads/records/temp/
+uploads/records/temp/*
+

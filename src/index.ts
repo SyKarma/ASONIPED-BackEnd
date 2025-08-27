@@ -32,6 +32,16 @@ app.get('/', (req, res) => {
   res.send('Backend is running!');
 });
 
+// Endpoint de salud para detección automática
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Backend funcionando correctamente',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Public login endpoint (legacy for admin login)
 app.post('/admin-login', async (req, res): Promise<void> => {
   const { username, password } = req.body;

@@ -22,13 +22,6 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
-    // Debug: Log the credentials being used
-    console.log('🔍 Email Service Constructor Debug:');
-    console.log(`   SMTP_USER: ${process.env.SMTP_USER}`);
-    console.log(`   SMTP_PASS: ${process.env.SMTP_PASS ? '***SET***' : 'NOT SET'}`);
-    console.log(`   SMTP_PASS length: ${process.env.SMTP_PASS?.length || 0}`);
-    console.log(`   Frontend URL: http://localhost:5173 (frontend auto-detects IP)`);
-    
     // Create transporter with Gmail SMTP configuration
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -37,8 +30,6 @@ export class EmailService {
         pass: process.env.SMTP_PASS || ''
       }
     });
-    
-    console.log('✅ Transporter created with configuration');
   }
 
   // Generate secure reset token

@@ -462,6 +462,8 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+
+
 // Resend verification email endpoint
 export const resendVerificationEmail = async (req: Request, res: Response): Promise<void> => {
   try {

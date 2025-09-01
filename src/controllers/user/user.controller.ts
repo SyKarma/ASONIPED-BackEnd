@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import * as UserModel from '../../models/user/user.model';
+import { emailService } from '../../services/email.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
@@ -58,8 +59,27 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     // Get user with roles
     const userWithRoles = await UserModel.getUserWithRoles(userId);
 
+    // Send verification email
+    try {
+      const verificationToken = emailService.instance.generateVerificationToken();
+      const verificationUrl = emailService.instance.generateVerificationUrl(verificationToken);
+      
+      // Store verification token in database
+      await UserModel.storeVerificationToken(userId, verificationToken);
+      
+      await emailService.instance.sendEmailVerification({
+        to: email,
+        username: username,
+        verificationToken: verificationToken,
+        verificationUrl: verificationUrl
+      });
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // Don't fail registration if email fails, just log it
+    }
+
     res.status(201).json({
-      message: 'User registered successfully',
+      message: 'User registered successfully. Please check your email to verify your account.',
       user: {
         id: userWithRoles?.id,
         username: userWithRoles?.username,
@@ -105,6 +125,14 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     // Check if user is active
     if (user.status !== 'active') {
       res.status(401).json({ error: 'Inactive account' });
+      return;
+    }
+
+    // Check if email is verified
+    if (!user.email_verified) {
+      res.status(401).json({ 
+        error: 'Please verify your email before logging in. Check your inbox for the verification link.' 
+      });
       return;
     }
 
@@ -406,5 +434,73 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
   } catch (err) {
     console.error('Error deleting user:', err);
     res.status(500).json({ error: 'Error deleting user' });
+  }
+};
+
+// Verify email endpoint
+export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      res.status(400).json({ error: 'Verification token is required' });
+      return;
+    }
+
+    // Verify the token and mark as verified
+    const userId = await UserModel.verifyAndConsumeToken(token);
+    
+    if (!userId) {
+      res.status(400).json({ error: 'Invalid or expired verification token' });
+      return;
+    }
+    
+    res.json({ message: 'Email verified successfully' });
+  } catch (err) {
+    console.error('Error verifying email:', err);
+    res.status(500).json({ error: 'Error verifying email' });
+  }
+};
+
+// Resend verification email endpoint
+export const resendVerificationEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    // Check if user exists
+    const user = await UserModel.getUserByEmail(email);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Send verification email
+    try {
+      const verificationToken = emailService.instance.generateVerificationToken();
+      const verificationUrl = emailService.instance.generateVerificationUrl(verificationToken);
+      
+      // Store new verification token
+      await UserModel.storeVerificationToken(user.id!, verificationToken);
+      
+      await emailService.instance.sendEmailVerification({
+        to: email,
+        username: user.username!,
+        verificationToken: verificationToken,
+        verificationUrl: verificationUrl
+      });
+
+      res.json({ message: 'Verification email sent successfully' });
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      res.status(500).json({ error: 'Error sending verification email' });
+    }
+  } catch (err) {
+    console.error('Error resending verification email:', err);
+    res.status(500).json({ error: 'Error resending verification email' });
   }
 }; 

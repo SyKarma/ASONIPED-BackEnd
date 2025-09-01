@@ -7,6 +7,8 @@ const router = express.Router();
 // Public routes (no authentication required)
 router.post('/register', UserController.registerUser);
 router.post('/login', UserController.loginUser);
+router.post('/verify-email', UserController.verifyEmail);
+router.post('/resend-verification', UserController.resendVerificationEmail);
 
 // Protected routes (require authentication)
 router.get('/profile', authenticateToken, UserController.getUserProfile);

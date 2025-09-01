@@ -3,7 +3,9 @@
 import { Request, Response } from 'express';
 import * as DonationModel from '../../models/donations/donation.model';
 
-// Get all donations
+/**
+ * Get all donations
+ */
 export const getDonations = async (req: Request, res: Response): Promise<void> => {
   try {
     const donations = await DonationModel.getAllDonations();
@@ -13,7 +15,9 @@ export const getDonations = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// Get a single donation by ID
+/**
+ * Get a single donation by ID
+ */
 export const getDonationById = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -32,44 +36,69 @@ export const getDonationById = async (req: Request, res: Response): Promise<void
   }
 };
 
-// Create a new donation (with strict validation)
+/**
+ * Create a new donation with automatic ticket generation
+ */
 export const addDonation = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nombre, correo, telefono, asunto, mensaje, aceptacion_privacidad, aceptacion_comunicacion } = req.body;
+    // Get authenticated user ID
+    const userId = (req as any).user?.userId;
+    
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
 
-    // --- VALIDACIONES ESTRICTAS ---
+    const { 
+      nombre, 
+      correo, 
+      telefono, 
+      asunto, 
+      mensaje, 
+      aceptacion_privacidad, 
+      aceptacion_comunicacion 
+    } = req.body;
+
+    // --- STRICT VALIDATIONS ---
+    
+    // Full name validation (minimum first and last name)
     if (!nombre || typeof nombre !== 'string' || nombre.trim().split(' ').length < 2) {
-      res.status(400).json({ error: 'Debe ingresar un nombre completo (mínimo nombre y apellido)' });
+      res.status(400).json({ error: 'Must enter a full name (minimum first and last name)' });
       return;
     }
-// condicion del correo
-    if (!correo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
-      res.status(400).json({ error: 'Correo electrónico inválido' });
-      return;
-    }
-// condicion del telefono
-    if (!telefono || !/^[0-9]{4}[0-9]{4}$/.test(telefono)) {
-      res.status(400).json({ error: 'Teléfono inválido (formato 88888888)' });
-      return;
-    }
-// condicion del asunto
-    if (!asunto || asunto.trim().length < 10) {
-      res.status(400).json({ error: 'El asunto debe tener al menos 10 caracteres' });
-      return;
-    }
-//condicion del mensaje
-    if (!mensaje || mensaje.trim().length < 10) {
-      res.status(400).json({ error: 'El mensaje debe tener al menos 10 caracteres' });
-      return;
-    }
-// condiciones de las aceptaciones
-    if (aceptacion_privacidad !== true || aceptacion_comunicacion !== true) {
-      res.status(400).json({ error: 'Debe aceptar la política de privacidad y la comunicación' });
-      return;
-    }
-    // -----------------------------
 
-    await DonationModel.createDonation({
+    // Email validation
+    if (!correo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+      res.status(400).json({ error: 'Invalid email address' });
+      return;
+    }
+
+    // Phone validation (format: 88888888)
+    if (!telefono || !/^[0-9]{4}[0-9]{4}$/.test(telefono)) {
+      res.status(400).json({ error: 'Invalid phone number (format: 88888888)' });
+      return;
+    }
+
+    // Subject validation (minimum 10 characters)
+    if (!asunto || asunto.trim().length < 10) {
+      res.status(400).json({ error: 'Subject must be at least 10 characters long' });
+      return;
+    }
+
+    // Message validation (minimum 10 characters)
+    if (!mensaje || mensaje.trim().length < 10) {
+      res.status(400).json({ error: 'Message must be at least 10 characters long' });
+      return;
+    }
+
+    // Privacy and communication acceptance validation
+    if (aceptacion_privacidad !== true || aceptacion_comunicacion !== true) {
+      res.status(400).json({ error: 'Must accept privacy policy and communication terms' });
+      return;
+    }
+
+    // Create the donation
+    const donationResult = await DonationModel.createDonation({
       nombre,
       correo,
       telefono,
@@ -79,14 +108,37 @@ export const addDonation = async (req: Request, res: Response): Promise<void> =>
       aceptacion_comunicacion,
     });
 
-    res.status(201).json({ message: 'Donation created successfully' });
+    // Get the created donation ID
+    const donationId = (donationResult as any).insertId;
+
+    // Automatically create a ticket for this donation
+    const { db } = await import('../../db');
+    const [ticketResult] = await db.execute(
+      'INSERT INTO donation_tickets (donation_id, user_id) VALUES (?, ?)',
+      [donationId, userId]
+    );
+    
+    const ticketId = (ticketResult as any).insertId;
+    
+    // Create initial automatic message
+    await db.execute(
+      'INSERT INTO ticket_messages (module_type, module_id, sender_id, message) VALUES (?, ?, ?, ?)',
+      ['donations', ticketId, userId, `New donation request: ${asunto}\n\nMessage: ${mensaje}`]
+    );
+
+    res.status(201).json({ 
+      message: 'Donation created successfully and ticket generated',
+      donationId: donationId
+    });
 
   } catch (err) {
     res.status(500).json({ error: 'Failed to create donation' });
   }
 };
 
-// Delete a donation
+/**
+ * Delete a donation
+ */
 export const deleteDonation = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);

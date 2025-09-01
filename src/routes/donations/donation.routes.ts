@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as DonationController from '../../controllers/donations/donation.controller';
-import { authenticateAdmin } from '../../middleware/auth.middleware';
+import { authenticateAdmin, authenticateToken } from '../../middleware/auth.middleware';
 
 const router = Router();
 
@@ -10,8 +10,8 @@ router.get('/', DonationController.getDonations);
 // Get a single donation by ID
 router.get('/:id', DonationController.getDonationById);
 
-// Create a new donation (public)
-router.post('/', DonationController.addDonation);
+// Create a new donation (requires authentication)
+router.post('/', authenticateToken, DonationController.addDonation);
 
 
 // Delete a donation (admin)

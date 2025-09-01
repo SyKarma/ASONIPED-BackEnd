@@ -6,7 +6,11 @@ CREATE TABLE users (
   full_name VARCHAR(255) NOT NULL,
   phone VARCHAR(50),
   status ENUM('active', 'inactive') DEFAULT 'active',
+  email_verified BOOLEAN DEFAULT FALSE,
+  email_verification_token VARCHAR(255)
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+ 
 );
 
+  

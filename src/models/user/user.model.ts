@@ -9,6 +9,8 @@ export interface User {
   full_name: string;
   phone?: string;
   status?: 'active' | 'inactive';
+  email_verified?: boolean;
+  email_verification_token?: string;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -44,8 +46,8 @@ export const createUser = async (userData: Omit<User, 'id' | 'created_at' | 'upd
   const { password_hash, ...userInfo } = userData;
   
   const [result] = await db.query(
-    'INSERT INTO users (username, email, password_hash, full_name, phone, status) VALUES (?, ?, ?, ?, ?, ?)',
-    [userInfo.username, userInfo.email, password_hash, userInfo.full_name, userInfo.phone, userInfo.status || 'active']
+    'INSERT INTO users (username, email, password_hash, full_name, phone, status, email_verified, email_verification_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [userInfo.username, userInfo.email, password_hash, userInfo.full_name, userInfo.phone, userInfo.status || 'active', false, null]
   );
   
   return (result as any).insertId;
@@ -223,4 +225,34 @@ export const getAllUsers = async (): Promise<User[]> => {
 // Remove all roles from a user
 export const removeAllUserRoles = async (userId: number): Promise<void> => {
   await db.query('DELETE FROM user_role_assignments WHERE user_id = ?', [userId]);
+};
+
+// Store verification token
+export const storeVerificationToken = async (userId: number, token: string): Promise<void> => {
+  await db.query(
+    'UPDATE users SET email_verification_token = ? WHERE id = ?',
+    [token, userId]
+  );
+};
+
+// Verify and consume verification token
+export const verifyAndConsumeToken = async (token: string): Promise<number | null> => {
+  const [rows] = await db.query(
+    'SELECT id FROM users WHERE email_verification_token = ? AND email_verified = 0',
+    [token]
+  );
+  
+  if ((rows as any[]).length === 0) {
+    return null;
+  }
+  
+  const userId = (rows as any[])[0].id;
+  
+  // Clear the token and mark as verified
+  await db.query(
+    'UPDATE users SET email_verified = 1, email_verification_token = NULL WHERE id = ?',
+    [userId]
+  );
+  
+  return userId;
 }; 

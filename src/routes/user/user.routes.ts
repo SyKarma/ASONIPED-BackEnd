@@ -1,6 +1,8 @@
 import express from 'express';
 import * as UserController from '../../controllers/user/user.controller';
+import * as PasswordResetController from '../../controllers/user/password_reset.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { forgotPasswordRateLimit } from '../../middleware/rate_limit.middleware';
 
 const router = express.Router();
 
@@ -9,6 +11,10 @@ router.post('/register', UserController.registerUser);
 router.post('/login', UserController.loginUser);
 router.post('/verify-email', UserController.verifyEmail);
 router.post('/resend-verification', UserController.resendVerificationEmail);
+
+// Password recovery routes (no authentication required)
+router.post('/forgot-password', forgotPasswordRateLimit, PasswordResetController.forgotPassword);
+router.post('/reset-password', PasswordResetController.resetPassword);
 
 // Protected routes (require authentication)
 router.get('/profile', authenticateToken, UserController.getUserProfile);

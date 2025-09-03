@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import path from 'path';
@@ -7,6 +8,9 @@ import jwt from 'jsonwebtoken';
 
 // Database connection
 import { db } from '../src/db';
+
+// Socket.io setup
+import { setupSocketIO } from './socket';
 
 // Middleware
 import { authenticateToken } from '../src/middleware/auth.middleware';
@@ -28,10 +32,14 @@ import ticketMessageRoutes from './routes/donations/ticket_message.routes';
 // Load environment variables
 dotenv.config();
 
-// Initialize Express app
+// Initialize Express app and HTTP server
 const app = express();
+const server = createServer(app);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+
+// Setup Socket.io
+const io = setupSocketIO(server);
 
 // Middleware configuration
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -128,9 +136,10 @@ const startServer = async (): Promise<void> => {
     await db.getConnection();
     console.log('✅ MySQL connection successful!');
     
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`📊 Health check available at: http://localhost:${PORT}/health`);
+      console.log(`🔌 Socket.io server is ready for real-time chat`);
     });
   } catch (error) {
     console.error('❌ MySQL connection failed:', error);

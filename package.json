@@ -24,7 +24,8 @@
     "multer": "^2.0.2",
     "mysql2": "^3.14.1",
     "node-cache": "^5.1.2",
-    "nodemailer": "^6.10.1"
+    "nodemailer": "^6.10.1",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

@@ -1,4 +1,5 @@
 import { db } from '../../db';
+import bcrypt from 'bcrypt';
 
 export interface PasswordResetToken {
   id?: number;
@@ -22,16 +23,24 @@ export const createToken = async (
   return result.insertId;
 };
 
-// Obtener token válido por hash
-export const getValidTokenByHash = async (
-  token_hash: string
+// Obtener token válido por token plano
+export const getValidTokenByPlainToken = async (
+  plainToken: string
 ): Promise<PasswordResetToken | null> => {
   const [rows]: any = await db.query(
-    'SELECT * FROM password_reset_tokens WHERE token_hash = ? AND used = FALSE AND expires_at > NOW()',
-    [token_hash]
+    'SELECT * FROM password_reset_tokens WHERE used = FALSE AND expires_at > NOW()',
+    []
   );
   if (!rows || rows.length === 0) return null;
-  return rows[0] as PasswordResetToken;
+  
+  // Buscar el token que coincida con el hash
+  for (const row of rows) {
+    const isValid = await bcrypt.compare(plainToken, row.token_hash);
+    if (isValid) {
+      return row as PasswordResetToken;
+    }
+  }
+  return null;
 };
 
 // Marcar tokens como usados para un usuario

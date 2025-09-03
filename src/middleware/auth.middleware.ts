@@ -39,6 +39,31 @@ export const authenticateAdmin = (req: AuthRequest, res: Response, next: NextFun
 };
 
 /**
+ * Verify JWT token and return decoded data (for Socket.io)
+ */
+export const verifyToken = async (token: string): Promise<{ username: string; role?: string; userId?: number }> => {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { 
+      username: string; 
+      role?: string; 
+      userId?: number; 
+      id?: number 
+    };
+    
+    // Ensure userId is available for consistent access
+    if (decoded.userId) {
+      return { ...decoded, userId: decoded.userId };
+    } else if (decoded.id) {
+      return { ...decoded, userId: decoded.id };
+    } else {
+      return decoded;
+    }
+  } catch (error) {
+    throw new Error('Invalid token');
+  }
+};
+
+/**
  * Authenticate users using JWT token with enhanced user ID handling
  */
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction): void => {

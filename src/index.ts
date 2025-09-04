@@ -28,6 +28,7 @@ import recordRoutes from './routes/records/record.routes';
 import recordDocumentRoutes from './routes/records/document.routes';
 import donationTicketRoutes from './routes/donations/donation_ticket.routes';
 import ticketMessageRoutes from './routes/donations/ticket_message.routes';
+import anonymousTicketRoutes from './routes/donations/anonymous_ticket.routes';
 
 // Load environment variables
 dotenv.config();
@@ -126,6 +127,7 @@ app.use('/enrollments', enrollmentRoutes);
 app.use('/records', recordRoutes);
 app.use('/donation-tickets', donationTicketRoutes);
 app.use('/ticket-messages', ticketMessageRoutes);
+app.use('/anonymous-tickets', anonymousTicketRoutes);
 
 // Temporarily disabled - uncomment when needed
 // app.use('/records', recordDocumentRoutes);

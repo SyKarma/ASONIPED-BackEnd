@@ -1,5 +1,3 @@
-// File: BackEnd/src/controllers/donation.controller.ts
-
 import { Request, Response } from 'express';
 import * as DonationModel from '../../models/donations/donation.model';
 
@@ -41,14 +39,9 @@ export const getDonationById = async (req: Request, res: Response): Promise<void
  */
 export const addDonation = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Get authenticated user ID
-    const userId = (req as any).user?.userId;
+    // Get authenticated user ID (optional for anonymous donations)
+    const userId = (req as any).user?.userId || null;
     
-    if (!userId) {
-      res.status(401).json({ error: 'User not authenticated' });
-      return;
-    }
-
     const { 
       nombre, 
       correo, 
@@ -56,27 +49,31 @@ export const addDonation = async (req: Request, res: Response): Promise<void> =>
       asunto, 
       mensaje, 
       aceptacion_privacidad, 
-      aceptacion_comunicacion 
+      aceptacion_comunicacion,
+      isAnonymous = false
     } = req.body;
 
-    // --- STRICT VALIDATIONS ---
+    // --- CONDITIONAL VALIDATIONS ---
     
-    // Full name validation (minimum first and last name)
-    if (!nombre || typeof nombre !== 'string' || nombre.trim().split(' ').length < 2) {
-      res.status(400).json({ error: 'Must enter a full name (minimum first and last name)' });
-      return;
-    }
+    // Only validate personal fields if not anonymous
+    if (!isAnonymous) {
+      // Full name validation (minimum first and last name)
+      if (!nombre || typeof nombre !== 'string' || nombre.trim().split(' ').length < 2) {
+        res.status(400).json({ error: 'Must enter a full name (minimum first and last name)' });
+        return;
+      }
 
-    // Email validation
-    if (!correo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
-      res.status(400).json({ error: 'Invalid email address' });
-      return;
-    }
+      // Email validation
+      if (!correo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+        res.status(400).json({ error: 'Invalid email address' });
+        return;
+      }
 
-    // Phone validation (format: 88888888)
-    if (!telefono || !/^[0-9]{4}[0-9]{4}$/.test(telefono)) {
-      res.status(400).json({ error: 'Invalid phone number (format: 88888888)' });
-      return;
+      // Phone validation (format: 88888888)
+      if (!telefono || !/^[0-9]{4}[0-9]{4}$/.test(telefono)) {
+        res.status(400).json({ error: 'Invalid phone number (format: 88888888)' });
+        return;
+      }
     }
 
     // Subject validation (minimum 10 characters)
@@ -111,27 +108,67 @@ export const addDonation = async (req: Request, res: Response): Promise<void> =>
     // Get the created donation ID
     const donationId = (donationResult as any).insertId;
 
-    // Automatically create a ticket for this donation
-    const { db } = await import('../../db');
-    const [ticketResult] = await db.execute(
-      'INSERT INTO donation_tickets (donation_id, user_id) VALUES (?, ?)',
-      [donationId, userId]
-    );
-    
-    const ticketId = (ticketResult as any).insertId;
-    
-    // Create initial automatic message
-    await db.execute(
-      'INSERT INTO ticket_messages (module_type, module_id, sender_id, message) VALUES (?, ?, ?, ?)',
-      ['donations', ticketId, userId, `New donation request: ${asunto}\n\nMessage: ${mensaje}`]
-    );
+    // Determine if this should be an anonymous ticket
+    // Anonymous if: explicitly marked as anonymous OR no user ID (no authentication)
+    const shouldBeAnonymous = isAnonymous || !userId;
 
-    res.status(201).json({ 
-      message: 'Donation created successfully and ticket generated',
-      donationId: donationId
-    });
+    // Generate session ID for anonymous users
+    const sessionId = shouldBeAnonymous ? `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}` : null;
+    
+    if (!shouldBeAnonymous && userId) {
+      // Authenticated user - create regular ticket
+      const { db } = await import('../../db');
+      const [ticketResult] = await db.execute(
+        'INSERT INTO donation_tickets (donation_id, user_id) VALUES (?, ?)',
+        [donationId, userId]
+      );
+      
+      const ticketId = (ticketResult as any).insertId;
+      
+      // Create initial automatic message
+      await db.execute(
+        'INSERT INTO ticket_messages (module_type, module_id, sender_id, message) VALUES (?, ?, ?, ?)',
+        ['donations', ticketId, userId, `Nueva solicitud de ayuda: ${asunto}\n\nMensaje: ${mensaje}`]
+      );
+
+      res.status(201).json({ 
+        message: 'Solicitud de ayuda creada exitosamente y ticket generado',
+        donationId: donationId,
+        ticketType: 'authenticated'
+      });
+    } else {
+      // Anonymous user (either explicitly marked or no authentication) - create anonymous ticket
+      const { db } = await import('../../db');
+      
+      // Generate unique ticket ID for public lookup
+      const timestamp = Date.now().toString(36);
+      const random = Math.random().toString(36).substring(2, 6);
+      const ticketId = `T${timestamp}${random}`.toUpperCase();
+      
+      const [ticketResult] = await db.execute(
+        'INSERT INTO anonymous_tickets (ticket_id, donation_id, session_id) VALUES (?, ?, ?)',
+        [ticketId, donationId, sessionId]
+      );
+      
+      const anonymousTicketId = (ticketResult as any).insertId;
+      
+      // Create initial automatic message
+      await db.execute(
+        'INSERT INTO anonymous_ticket_messages (ticket_id, sender_type, message) VALUES (?, ?, ?)',
+        [anonymousTicketId, 'user', `Nueva solicitud de ayuda: ${asunto}\n\nMensaje: ${mensaje}`]
+      );
+
+      res.status(201).json({ 
+        message: 'Anonymous donation created successfully and ticket generated',
+        donationId: donationId,
+        ticketId: ticketId,
+        ticketType: 'anonymous',
+        sessionId: sessionId
+      });
+    }
 
   } catch (err) {
+    console.error('Error creating donation:', err);
     res.status(500).json({ error: 'Failed to create donation' });
   }
 };

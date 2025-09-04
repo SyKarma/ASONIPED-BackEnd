@@ -39,12 +39,12 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 // POST /users/reset-password
 export const resetPassword = async (req: Request, res: Response): Promise<void> => {
   const { token, password } = req.body;
-  if (!validatePassword(password)) {
-    res.status(422).json({ error: 'Contraseña inválida.' });
+  if (!password) {
+    res.status(422).json({ error: 'La contraseña es requerida.' });
     return;
   }
-  // Busca token por hash
-  const tokens = await PasswordResetTokenModel.getValidTokenByHash(token);
+  // Busca token válido a partir del token plano
+  const tokens = await PasswordResetTokenModel.getValidTokenByPlainToken(token);
   if (!tokens) {
     res.status(400).json({ error: 'Token inválido.' });
     return;
@@ -57,12 +57,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     res.status(400).json({ error: 'Token ya usado.' });
     return;
   }
-  // Verifica el token real
-  const valid = await bcrypt.compare(token, tokens.token_hash);
-  if (!valid) {
-    res.status(400).json({ error: 'Token inválido.' });
-    return;
-  }
+  // Token válido
   // Hashea la nueva contraseña
   const password_hash = await bcrypt.hash(password, PASSWORD_COST);
   await UserModel.updateUser(tokens.user_id, { password_hash });
@@ -71,6 +66,5 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 };
 
 function validatePassword(password: string): boolean {
-  // Ejemplo: mínimo 8 caracteres, una mayúscula, un número
-  return /^(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
+  return Boolean(password && password.length > 0);
 }

@@ -13,5 +13,6 @@ router.get('/user/:userId', authenticateToken, DonationTicketController.getByUse
 router.get('/:id', authenticateToken, DonationTicketController.getById);
 router.put('/:id', authenticateToken, DonationTicketController.update);
 router.patch('/:id/close', authenticateToken, DonationTicketController.close);
+router.patch('/:id/archive', authenticateToken, DonationTicketController.archive);
 
 export default router;

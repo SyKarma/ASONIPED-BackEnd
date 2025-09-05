@@ -15,6 +15,33 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       res.status(400).json({ error: 'All required fields are mandatory' });
       return;
     }
+    // Validaciones personalizadas
+    
+    // Validar que el nombre de usuario solo contenga letras y tenga máximo 15 caracteres
+    if (!/^[A-Za-z]{1,15}$/.test(username)) {
+      res.status(400).json({ error: 'El usuario solo debe contener letras y máximo 15 caracteres.' });
+      return;
+    }
+    // Validar formato de correo electrónico
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: 'Debe ingresar un correo electrónico válido.' });
+      return;
+    }
+    // Validar que el nombre completo tenga al menos dos palabras
+    if (!/^([A-Za-zÁÉÍÓÚáéíóúÑñ]+(\s+|$)){2,}$/.test(full_name.trim())) {
+      res.status(400).json({ error: 'Debe ingresar un nombre completo válido (al menos dos palabras).' });
+      return;
+    }
+    // Validar que el teléfono tenga exactamente 8 dígitos
+    if (!/^[0-9]{8}$/.test(phone)) {
+      res.status(400).json({ error: 'El teléfono debe tener exactamente 8 dígitos.' });
+      return;
+    }
+    // Validar que el teléfono no comience con 0 o 1
+    if (!/^[A-Za-z0-9]{6,20}$/.test(password)) {
+      res.status(400).json({ error: 'La contraseña debe tener mínimo 6 caracteres y máximo 20 caracteres y solo letras y números.' });
+      return;
+    }
 
     // Check if user already exists
     const existingUser = await UserModel.getUserByUsername(username);

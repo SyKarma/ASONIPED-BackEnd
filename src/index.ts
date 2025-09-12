@@ -29,10 +29,9 @@ import recordDocumentRoutes from './routes/records/document.routes';
 import donationTicketRoutes from './routes/donations/donation_ticket.routes';
 import ticketMessageRoutes from './routes/donations/ticket_message.routes';
 import anonymousTicketRoutes from './routes/donations/anonymous_ticket.routes';
-import landingroutes from './routes/landing/landing.routes';
 import heroSectionRoutes from './routes/landing/Hero-section.routes';
 import aboutSectionRoutes from './routes/landing/About-section.routes';
-import landingDonacionesComponentRoutes from './routes/landing/landing.routes';
+import landingDonacionesComponentRoutes from './routes/landing/landing-donaciones-component.routes';
 import landingDonacionesCardRoutes from './routes/landing/landing.routes';
 
 // Load environment variables

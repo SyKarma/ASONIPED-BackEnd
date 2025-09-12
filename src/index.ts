@@ -32,7 +32,7 @@ import anonymousTicketRoutes from './routes/donations/anonymous_ticket.routes';
 import heroSectionRoutes from './routes/landing/Hero-section.routes';
 import aboutSectionRoutes from './routes/landing/About-section.routes';
 import landingDonacionesComponentRoutes from './routes/landing/landing-donaciones-component.routes';
-import landingDonacionesCardRoutes from './routes/landing/landing.routes';
+import landingDonacionesCardRoutes from './routes/landing/landing-donaciones-card.routes';
 
 // Load environment variables
 dotenv.config();
@@ -132,8 +132,6 @@ app.use('/records', recordRoutes);
 app.use('/donation-tickets', donationTicketRoutes);
 app.use('/ticket-messages', ticketMessageRoutes);
 app.use('/anonymous-tickets', anonymousTicketRoutes);
-
-app.use('/landing', landingroutes);
 app.use('/hero-section', heroSectionRoutes);
 app.use('/about-section', aboutSectionRoutes);
 app.use('/landing-donaciones-component', landingDonacionesComponentRoutes);

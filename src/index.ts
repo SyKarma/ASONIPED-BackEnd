@@ -33,7 +33,7 @@ import landingroutes from './routes/landing/landing.routes';
 import heroSectionRoutes from './routes/landing/Hero-section.routes';
 import aboutSectionRoutes from './routes/landing/About-section.routes';
 import landingDonacionesComponentRoutes from './routes/landing/landing.routes';
-import landingDonacionesCardRoutes from './routes/landing/landing.routes';
+import landingDonacionesCardRoutes from './routes/landing/landing-donaciones-card.routes';
 
 // Load environment variables
 dotenv.config();

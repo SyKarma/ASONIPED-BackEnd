@@ -1,4 +1,4 @@
-// Estructura de la tabla hero_section
+-- Estructura de la tabla hero_section
 
 CREATE TABLE hero_section (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -11,7 +11,7 @@ CREATE TABLE hero_section (
     color_boton_derecho VARCHAR(20) NOT NULL
 );
 
-// Estructura de la tabla AboutSection
+-- Estructura de la tabla AboutSection
 
 CREATE TABLE AboutSection (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -22,7 +22,7 @@ CREATE TABLE AboutSection (
   color_boton VARCHAR(20) NOT NULL
 );
 
-// Estructura de la tabla landing_donaciones_component
+-- Estructura de la tabla landing_donaciones_component
 
 CREATE TABLE landing_donaciones_component (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -31,7 +31,7 @@ CREATE TABLE landing_donaciones_component (
 
 );
 
-// Estructura de la tabla landing_donaciones_card
+-- Estructura de la tabla landing_donaciones_card
 
 CREATE TABLE landing_donaciones_card (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -43,7 +43,7 @@ CREATE TABLE landing_donaciones_card (
   
 );
 
-// Estructura de la tabla landing_Volunteer
+-- Estructura de la tabla landing_Volunteer
 
 CREATE TABLE landing_Volunteer (
   id INT AUTO_INCREMENT PRIMARY KEY,

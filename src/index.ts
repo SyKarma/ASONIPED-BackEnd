@@ -33,6 +33,7 @@ import heroSectionRoutes from './routes/landing/Hero-section.routes';
 import aboutSectionRoutes from './routes/landing/About-section.routes';
 import landingDonacionesComponentRoutes from './routes/landing/landing-donaciones-component.routes';
 import landingDonacionesCardRoutes from './routes/landing/landing-donaciones-card.routes';
+import landingVolunteerRoutes from './routes/landing/landing-volunteer.routes';
 
 // Load environment variables
 dotenv.config();
@@ -136,6 +137,7 @@ app.use('/hero-section', heroSectionRoutes);
 app.use('/about-section', aboutSectionRoutes);
 app.use('/landing-donaciones-component', landingDonacionesComponentRoutes);
 app.use('/landing-donaciones-card', landingDonacionesCardRoutes);
+app.use('/landing-volunteer', landingVolunteerRoutes);
 
 // Temporarily disabled - uncomment when needed
 // app.use('/records', recordDocumentRoutes);

@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { HeroSectionModel } from '../../models/landing/Hero-section.model';
 
+// Función utilitaria para validar URLs
+function isValidUrl(url: string): boolean { 
+  try { new URL(url); return true;} catch {return false;}
+}
+
 // Get all hero sections
 export const getAllHeroSections = async (req: Request, res: Response) => {
   try {
@@ -26,8 +31,34 @@ export const getHeroSectionById = async (req: Request, res: Response) => {
   }
 };
 
-// Create new hero section
+// Create new hero section WITH VALIDATION
 export const createHeroSection = async (req: Request, res: Response) => {
+  // VALIDACIONES
+  const { titulo, URL_imagen, descripcion, texto_boton_izquierdo, color_boton_izquierdo, texto_boton_derecho, color_boton_derecho } = req.body;
+
+  if (!titulo || typeof titulo !== "string" || titulo.length < 3 || titulo.length > 255) {
+    return res.status(400).json({ error: "titulo es requerido y debe tener entre 3 y 255 caracteres" });
+  }
+  if (URL_imagen && (typeof URL_imagen !== "string" || URL_imagen.length > 255 || !isValidUrl(URL_imagen))) {
+    return res.status(400).json({ error: "URL_imagen debe ser una URL válida y máximo 255 caracteres" });
+  }
+  if (!descripcion || typeof descripcion !== "string" || descripcion.length > 2000) {
+    return res.status(400).json({ error: "descripcion es requerida y máximo 2000 caracteres" });
+  }
+  if (!texto_boton_izquierdo || typeof texto_boton_izquierdo !== "string" || texto_boton_izquierdo.length < 1 || texto_boton_izquierdo.length > 100) {
+    return res.status(400).json({ error: "texto_boton_izquierdo es requerido y debe tener entre 1 y 100 caracteres" });
+  }
+  if (!color_boton_izquierdo || typeof color_boton_izquierdo !== "string" || color_boton_izquierdo.length > 20) {
+    return res.status(400).json({ error: "color_boton_izquierdo es requerido y máximo 20 caracteres" });
+  }
+  if (!texto_boton_derecho || typeof texto_boton_derecho !== "string" || texto_boton_derecho.length < 1 || texto_boton_derecho.length > 100) {
+    return res.status(400).json({ error: "texto_boton_derecho es requerido y debe tener entre 1 y 100 caracteres" });
+  }
+  if (!color_boton_derecho || typeof color_boton_derecho !== "string" || color_boton_derecho.length > 20) {
+    return res.status(400).json({ error: "color_boton_derecho es requerido y máximo 20 caracteres" });
+  }
+
+  // CRUD
   try {
     const id = await HeroSectionModel.create(req.body);
     res.status(201).json({ message: 'Hero section created', id });
@@ -36,8 +67,34 @@ export const createHeroSection = async (req: Request, res: Response) => {
   }
 };
 
-// Update hero section
+// Update hero section WITH VALIDATION
 export const updateHeroSection = async (req: Request, res: Response) => {
+  // VALIDACIONES
+  const { titulo, URL_imagen, descripcion, texto_boton_izquierdo, color_boton_izquierdo, texto_boton_derecho, color_boton_derecho } = req.body;
+
+  if (!titulo || typeof titulo !== "string" || titulo.length < 3 || titulo.length > 255) {
+    return res.status(400).json({ error: "titulo es requerido y debe tener entre 3 y 255 caracteres" });
+  }
+  if (URL_imagen && (typeof URL_imagen !== "string" || URL_imagen.length > 255 || !isValidUrl(URL_imagen))) {
+    return res.status(400).json({ error: "URL_imagen debe ser una URL válida y máximo 255 caracteres" });
+  }
+  if (!descripcion || typeof descripcion !== "string" || descripcion.length > 2000) {
+    return res.status(400).json({ error: "descripcion es requerida y máximo 2000 caracteres" });
+  }
+  if (!texto_boton_izquierdo || typeof texto_boton_izquierdo !== "string" || texto_boton_izquierdo.length < 1 || texto_boton_izquierdo.length > 100) {
+    return res.status(400).json({ error: "texto_boton_izquierdo es requerido y debe tener entre 1 y 100 caracteres" });
+  }
+  if (!color_boton_izquierdo || typeof color_boton_izquierdo !== "string" || color_boton_izquierdo.length > 20) {
+    return res.status(400).json({ error: "color_boton_izquierdo es requerido y máximo 20 caracteres" });
+  }
+  if (!texto_boton_derecho || typeof texto_boton_derecho !== "string" || texto_boton_derecho.length < 1 || texto_boton_derecho.length > 100) {
+    return res.status(400).json({ error: "texto_boton_derecho es requerido y debe tener entre 1 y 100 caracteres" });
+  }
+  if (!color_boton_derecho || typeof color_boton_derecho !== "string" || color_boton_derecho.length > 20) {
+    return res.status(400).json({ error: "color_boton_derecho es requerido y máximo 20 caracteres" });
+  }
+
+  // CRUD
   try {
     const id = parseInt(req.params.id);
     await HeroSectionModel.update(id, req.body);

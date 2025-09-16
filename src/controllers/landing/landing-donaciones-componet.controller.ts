@@ -30,6 +30,16 @@ export const getLandingDonacionesComponentById = async (req: Request, res: Respo
 
 // Create component
 export const createLandingDonacionesComponent = async (req: Request, res: Response) => {
+   const { titulo, descripcion } = req.body;
+
+  if (!titulo || typeof titulo !== "string" || titulo.length < 3 || titulo.length > 150) {
+    return res.status(400).json({ error: "titulo es requerido y debe tener entre 3 y 150 caracteres" });
+  }
+  if (!descripcion || typeof descripcion !== "string" || descripcion.length > 2000) {
+    return res.status(400).json({ error: "descripcion es requerida y máximo 2000 caracteres" });
+  }
+
+// CRUD 
   try {
     const id = await LandingDonacionesComponentModel.create(req.body);
     res.status(201).json({ message: 'Component created', id });
@@ -40,6 +50,16 @@ export const createLandingDonacionesComponent = async (req: Request, res: Respon
 
 // Update component
 export const updateLandingDonacionesComponent = async (req: Request, res: Response) => {
+  const { titulo, descripcion } = req.body;
+
+  if (!titulo || typeof titulo !== "string" || titulo.length < 3 || titulo.length > 150) {
+    return res.status(400).json({ error: "titulo es requerido y debe tener entre 3 y 150 caracteres" });
+  }
+  if (!descripcion || typeof descripcion !== "string" || descripcion.length > 2000) {
+    return res.status(400).json({ error: "descripcion es requerida y máximo 2000 caracteres" });
+  }
+
+ // CRUD 
   try {
     const id = parseInt(req.params.id);
     await LandingDonacionesComponentModel.update(id, req.body);

@@ -71,7 +71,7 @@ export const addDonation = async (req: Request, res: Response): Promise<void> =>
 
       // Phone validation (format: 88888888)
       if (!telefono || !/^[0-9]{4}[0-9]{4}$/.test(telefono)) {
-        res.status(400).json({ error: 'Invalid phone number (format: 88888888)' });
+        res.status(400).json({ error: 'Invalid phone number (format: 8888-8888)' });
         return;
       }
     }

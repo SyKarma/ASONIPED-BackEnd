@@ -36,6 +36,10 @@ router.patch('/:id/status', authenticateToken, RecordController.updateRecordStat
 // Routes for approvals/rejections
 router.put('/:id/approve-phase1', authenticateToken, RecordController.approvePhase1); // Approve phase 1
 router.put('/:id/reject-phase1', authenticateToken, RecordController.rejectPhase1); // Reject phase 1
+router.put('/:id/request-modification', authenticateToken, RecordController.requestPhase1Modification); // Request modification
+router.put('/:id/request-phase3-modification', authenticateToken, RecordController.requestPhase3Modification); // Request Phase 3 modification
+router.put('/:id/update-phase1', authenticateToken, RecordController.updatePhase1Data); // Update phase 1 data
+router.put('/:id/update-phase3', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.updatePhase3Data); // Update phase 3 data
 router.put('/:id/approve', authenticateToken, RecordController.approveRecord); // Approve complete record
 router.put('/:id/reject', authenticateToken, RecordController.rejectRecord); // Reject complete record
 

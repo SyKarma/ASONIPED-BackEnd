@@ -45,8 +45,8 @@ export const deleteDirectory = (dirPath: string): boolean => {
 };
 
 // Get public URL of file
-export const getFileUrl = (recordId: string, fileName: string): string => {
-  return `/uploads/records/${recordId}/${fileName}`;
+export const getFileUrl = (recordId: string, fileName: string, googleDriveUrl?: string): string => {
+  return googleDriveUrl || `/uploads/records/${recordId}/${fileName}`;
 };
 
 // Validate file type

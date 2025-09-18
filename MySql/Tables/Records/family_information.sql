@@ -1,0 +1,21 @@
+CREATE TABLE family_information (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  mother_name VARCHAR(255),
+  mother_cedula VARCHAR(50),
+  mother_occupation VARCHAR(255),
+  mother_phone VARCHAR(20),
+  father_name VARCHAR(255),
+  father_cedula VARCHAR(50),
+  father_occupation VARCHAR(255),
+  father_phone VARCHAR(20),
+  responsible_person VARCHAR(255),
+  responsible_address TEXT,
+  responsible_cedula VARCHAR(50),
+  responsible_occupation VARCHAR(255),
+  responsible_phone VARCHAR(20),
+  family_members JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);

@@ -13,27 +13,8 @@ const ALLOWED_DOCUMENT_TYPES: Record<string, string[]> = {
   'other': ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx']
 };
 
-// Storage configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const recordId = req.params.recordId || 'temp';
-    const uploadPath = path.join(__dirname, '../../uploads/records', recordId);
-    
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique name: timestamp_originalname
-    const timestamp = Date.now();
-    const originalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const uniqueName = `${timestamp}_${originalName}`;
-    cb(null, uniqueName);
-  }
-});
+// Storage configuration - use memory storage to avoid saving files locally
+const storage = multer.memoryStorage();
 
 // File filter
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
@@ -54,7 +35,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB maximum
+    fileSize: 30 * 1024 * 1024, // 30MB maximum
     files: 10 // Maximum 10 files per record
   }
 });
@@ -89,7 +70,7 @@ export const handleUploadError = (error: any, req: any, res: any, next: any) => 
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
-        error: 'File is too large. Maximum 10MB' 
+        error: 'File is too large. Maximum 30MB' 
       });
     }
     if (error.code === 'LIMIT_FILE_COUNT') {
@@ -107,4 +88,3 @@ export const handleUploadError = (error: any, req: any, res: any, next: any) => 
 
   next(error);
 };
-

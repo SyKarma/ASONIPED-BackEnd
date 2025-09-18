@@ -1,9 +1,11 @@
 import { db } from '../../db';
+import { createOrUpdateFamilyInformation as createOrUpdateFamilyInfo } from './family_information.model';
+import { createOrUpdateDisabilityData, getDisabilityData } from './disability_data.model';
 
 export interface Record {
   id?: number;
   record_number: string;
-  status?: 'draft' | 'pending' | 'approved' | 'rejected' | 'active' | 'inactive';
+  status?: 'draft' | 'pending' | 'needs_modification' | 'approved' | 'rejected' | 'active' | 'inactive';
   phase?: 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'completed';
   created_at?: Date;
   updated_at?: Date;
@@ -12,6 +14,8 @@ export interface Record {
 
 export interface RecordWithDetails extends Record {
   personal_data?: any;
+  family_information?: any;
+  complete_personal_data?: any;
   disability_data?: any;
   registration_requirements?: any;
   enrollment_form?: any;
@@ -53,8 +57,9 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
     const [rows] = await db.query(
       `SELECT r.*, 
               pd.id as pd_id, pd.full_name, pd.cedula, pd.pcd_name, pd.gender, 
-              pd.birth_date, pd.birth_place, pd.address, pd.province, pd.district,
-              pd.mother_name, pd.mother_cedula, pd.father_name, pd.father_cedula,
+              pd.birth_date, pd.birth_place, pd.address, pd.province, pd.canton, pd.district, pd.phone,
+              pd.mother_name, pd.mother_cedula, pd.mother_phone, pd.father_name, pd.father_cedula, pd.father_phone,
+              pd.legal_guardian_name, pd.legal_guardian_cedula, pd.legal_guardian_phone,
               pd.created_at as pd_created_at, pd.updated_at as pd_updated_at
        FROM records r 
        LEFT JOIN personal_data pd ON r.id = pd.record_id 
@@ -82,11 +87,18 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
         birth_place: row.birth_place,
         address: row.address,
         province: row.province,
+        canton: row.canton,
         district: row.district,
+        phone: row.phone,
         mother_name: row.mother_name,
         mother_cedula: row.mother_cedula,
+        mother_phone: row.mother_phone,
         father_name: row.father_name,
         father_cedula: row.father_cedula,
+        father_phone: row.father_phone,
+        legal_guardian_name: row.legal_guardian_name,
+        legal_guardian_cedula: row.legal_guardian_cedula,
+        legal_guardian_phone: row.legal_guardian_phone,
         created_at: row.pd_created_at,
         updated_at: row.pd_updated_at
       };
@@ -95,12 +107,10 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
     // Get disability data
     let disabilityData = null;
     try {
-      const [disabilityRows] = await db.query('SELECT * FROM disability_data WHERE record_id = ?', [id]) as [any[], any];
-      if (disabilityRows.length > 0) {
-        disabilityData = disabilityRows[0];
-      }
+      disabilityData = await getDisabilityData(id);
     } catch (err) {
-      // Table may not exist
+      console.error('Error loading disability data:', err);
+      // Continue without disability data
     }
     
     // Get registration requirements
@@ -125,14 +135,58 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       // Table may not exist
     }
     
+    // Get family information (Phase 3)
+    let familyInformation = null;
+    try {
+      const [familyRows] = await db.query('SELECT * FROM family_information WHERE record_id = ?', [id]) as [any[], any];
+      if (familyRows.length > 0) {
+        const familyRow = familyRows[0];
+        familyInformation = {
+          ...familyRow,
+          family_members: (() => {
+            try {
+              if (familyRow.family_members && familyRow.family_members !== '[]' && familyRow.family_members !== 'null') {
+                return JSON.parse(familyRow.family_members);
+              }
+              return [];
+            } catch (e) {
+              return [];
+            }
+          })()
+        };
+      }
+    } catch (err) {
+      console.error('Error loading family information:', err);
+      // Table may not exist
+    }
+
+    // Get complete personal data (Phase 3)
+    let completePersonalData = null;
+    try {
+      const [completeRows] = await db.query('SELECT * FROM complete_personal_data WHERE record_id = ?', [id]) as [any[], any];
+      if (completeRows.length > 0) {
+        completePersonalData = completeRows[0];
+      }
+    } catch (err) {
+      // Table may not exist
+    }
+
     // Get socioeconomic data
     let socioeconomicData = null;
     try {
       const [socioeconomicRows] = await db.query('SELECT * FROM socioeconomic_data WHERE record_id = ?', [id]) as [any[], any];
       if (socioeconomicRows.length > 0) {
-        socioeconomicData = socioeconomicRows[0];
+        const row = socioeconomicRows[0];
+        socioeconomicData = {
+          ...row,
+          available_services: row.available_services ? 
+            (typeof row.available_services === 'string' ? JSON.parse(row.available_services) : row.available_services) : [],
+          working_family_members: row.working_family_members ? 
+            (typeof row.working_family_members === 'string' ? JSON.parse(row.working_family_members) : row.working_family_members) : []
+        };
       }
     } catch (err) {
+      console.error('Error loading socioeconomic data:', err);
       // Table may not exist
     }
     
@@ -150,7 +204,9 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
     try {
       const [notesResult] = await db.query('SELECT * FROM record_notes WHERE record_id = ? ORDER BY created_at DESC', [id]) as [any[], any];
       notesRows = notesResult;
+      console.log('Retrieved notes for record', id, ':', notesRows);
     } catch (err) {
+      console.error('Error retrieving notes:', err);
       // Table may not exist
     }
     
@@ -163,10 +219,14 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       updated_at: row.updated_at,
       created_by: row.created_by,
       personal_data: personalData,
+      family_information: familyInformation,
+      complete_personal_data: completePersonalData,
       disability_data: disabilityData,
+      disability_information: disabilityData,
       registration_requirements: registrationRequirements,
       enrollment_form: enrollmentForm,
       socioeconomic_data: socioeconomicData,
+      socioeconomic_information: socioeconomicData,
       documents: documents,
       notes: notesRows
     };
@@ -339,6 +399,63 @@ export const rejectPhase1 = async (id: number): Promise<void> => {
   }
 };
 
+// Request modification for phase 1
+export const requestPhase1Modification = async (id: number): Promise<void> => {
+  try {
+    const [result] = await db.query('UPDATE records SET status = ?, phase = ? WHERE id = ?', ['needs_modification', 'phase1', id]) as [any, any];
+    
+    if (result.affectedRows === 0) {
+      throw new Error(`Record with ID ${id} not found`);
+    }
+  } catch (err) {
+    console.error('Error in requestPhase1Modification:', err);
+    throw err;
+  }
+};
+
+// Update phase 1 data (for modifications)
+export const updatePhase1Data = async (id: number, personalData: any): Promise<void> => {
+  try {
+    // Update the personal_data table
+    const [result] = await db.query(`
+      UPDATE personal_data 
+      SET full_name = ?, pcd_name = ?, cedula = ?, gender = ?, birth_date = ?, 
+          birth_place = ?, address = ?, province = ?, canton = ?, district = ?,
+          mother_name = ?, mother_cedula = ?, father_name = ?, father_cedula = ?,
+          legal_guardian_name = ?, legal_guardian_cedula = ?
+      WHERE record_id = ?
+    `, [
+      personalData.full_name,
+      personalData.pcd_name,
+      personalData.cedula,
+      personalData.gender,
+      personalData.birth_date,
+      personalData.birth_place,
+      personalData.address,
+      personalData.province,
+      personalData.canton,
+      personalData.district,
+      personalData.mother_name,
+      personalData.mother_cedula,
+      personalData.father_name,
+      personalData.father_cedula,
+      personalData.legal_guardian_name,
+      personalData.legal_guardian_cedula,
+      id
+    ]) as [any, any];
+
+    if (result.affectedRows === 0) {
+      throw new Error(`Personal data for record ID ${id} not found`);
+    }
+
+    // Update the record status back to pending
+    await db.query('UPDATE records SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['pending', id]) as [any, any];
+  } catch (err) {
+    console.error('Error in updatePhase1Data:', err);
+    throw err;
+  }
+};
+
 // Approve complete record
 export const approveRecord = async (id: number): Promise<void> => {
   try {
@@ -388,12 +505,59 @@ export const checkCedulaExists = async (cedula: string): Promise<boolean> => {
 // Add note to a record
 export const addNote = async (recordId: number, noteData: { note: string; type: string; created_by?: number }): Promise<void> => {
   try {
-    await db.query(
+    console.log('addNote called with:', { recordId, noteData });
+    const [result] = await db.query(
       'INSERT INTO record_notes (record_id, note, type, created_by) VALUES (?, ?, ?, ?)',
       [recordId, noteData.note, noteData.type, noteData.created_by]
     ) as [any, any];
+    console.log('Note inserted successfully:', result);
   } catch (err) {
     console.error('Error in addNote:', err);
+    throw err;
+  }
+};
+
+// Add structured note to a record (with sections, documents, etc.)
+export const addStructuredNote = async (recordId: number, noteData: { 
+  note: string; 
+  admin_comment?: string | null;
+  sections_to_modify?: string | null;
+  documents_to_replace?: string | null;
+  modification_metadata?: string | null;
+  type: string; 
+  modification_type?: string;
+  created_by?: number | null;
+}): Promise<void> => {
+  try {
+    console.log('addStructuredNote called with:', { recordId, noteData });
+    
+    const [result] = await db.query(
+      `INSERT INTO record_notes 
+       (record_id, note, admin_comment, sections_to_modify, documents_to_replace, 
+        modification_metadata, type, modification_type, created_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        recordId, 
+        noteData.note, 
+        noteData.admin_comment || null,
+        noteData.sections_to_modify || null,
+        noteData.documents_to_replace || null,
+        noteData.modification_metadata || null,
+        noteData.type, 
+        noteData.modification_type || 'general',
+        noteData.created_by || null
+      ]
+    ) as [any, any];
+    console.log('Structured note inserted successfully:', result);
+    
+    // Verify what was actually inserted
+    const [verifyResult] = await db.query(
+      'SELECT * FROM record_notes WHERE id = ?',
+      [result.insertId]
+    ) as [any[], any];
+    console.log('Verification - inserted note:', verifyResult[0]);
+  } catch (err) {
+    console.error('Error in addStructuredNote:', err);
     throw err;
   }
 };
@@ -476,66 +640,8 @@ const cleanValue = (value: any): any => {
   return value;
 };
 
-// Create or update disability data
-export const createOrUpdateDisabilityData = async (recordId: number, disabilityData: any): Promise<void> => {
-  try {
-    // Check if disability data already exists
-    const [existingRows] = await db.query(
-      'SELECT id FROM disability_data WHERE record_id = ?',
-      [recordId]
-    ) as [any[], any];
-    
-    if (existingRows.length > 0) {
-      // Update existing data
-      await db.query(
-        `UPDATE disability_data SET 
-         disability_type = ?, medical_diagnosis = ?, insurance_type = ?, 
-         biomechanical_benefit = ?, permanent_limitations = ?, limitation_degree = ?,
-         disability_origin = ?, disability_certificate = ?, conapdis_registration = ?,
-         observations = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE record_id = ?`,
-        [
-          cleanValue(disabilityData.disability_type),
-          cleanValue(disabilityData.medical_diagnosis),
-          cleanValue(disabilityData.insurance_type),
-          cleanValue(disabilityData.biomechanical_benefit),
-          cleanValue(disabilityData.permanent_limitations),
-          cleanValue(disabilityData.limitation_degree),
-          cleanValue(disabilityData.disability_origin),
-          cleanValue(disabilityData.disability_certificate),
-          cleanValue(disabilityData.conapdis_registration),
-          cleanValue(disabilityData.observations),
-          recordId
-        ]
-      );
-    } else {
-      // Create new data
-      await db.query(
-        `INSERT INTO disability_data 
-         (record_id, disability_type, medical_diagnosis, insurance_type, biomechanical_benefit,
-          permanent_limitations, limitation_degree, disability_origin, disability_certificate,
-          conapdis_registration, observations)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          recordId,
-          cleanValue(disabilityData.disability_type),
-          cleanValue(disabilityData.medical_diagnosis),
-          cleanValue(disabilityData.insurance_type),
-          cleanValue(disabilityData.biomechanical_benefit),
-          cleanValue(disabilityData.permanent_limitations),
-          cleanValue(disabilityData.limitation_degree),
-          cleanValue(disabilityData.disability_origin),
-          cleanValue(disabilityData.disability_certificate),
-          cleanValue(disabilityData.conapdis_registration),
-          cleanValue(disabilityData.observations)
-        ]
-      );
-    }
-  } catch (err) {
-    console.error('Error in createOrUpdateDisabilityData:', err);
-    throw err;
-  }
-};
+// Re-export the disability data functions from the dedicated model
+export { createOrUpdateDisabilityData, getDisabilityData };
 
 // Create or update registration requirements
 export const createOrUpdateRegistrationRequirements = async (recordId: number, requirements: any): Promise<void> => {
@@ -643,6 +749,9 @@ export const createOrUpdateEnrollmentForm = async (recordId: number, enrollmentD
 // Create or update socioeconomic data
 export const createOrUpdateSocioeconomicData = async (recordId: number, socioeconomicData: any): Promise<void> => {
   try {
+    console.log('=== SAVING SOCIOECONOMIC DATA ===');
+    console.log('Record ID:', recordId);
+    console.log('Socioeconomic Data:', JSON.stringify(socioeconomicData, null, 2));
     // Check if socioeconomic data already exists
     const [existingRows] = await db.query(
       'SELECT id FROM socioeconomic_data WHERE record_id = ?',
@@ -662,8 +771,8 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
       // Update existing data
       await db.query(
         `UPDATE socioeconomic_data SET 
-         housing_type = ?, services = ?, family_income = ?, 
-         working_people = ?, updated_at = CURRENT_TIMESTAMP
+         housing_type = ?, available_services = ?, family_income = ?, 
+         working_family_members = ?, updated_at = CURRENT_TIMESTAMP
          WHERE record_id = ?`,
         [
           cleanValue(socioeconomicData.housing_type),
@@ -677,7 +786,7 @@ export const createOrUpdateSocioeconomicData = async (recordId: number, socioeco
       // Create new data
       await db.query(
         `INSERT INTO socioeconomic_data 
-         (record_id, housing_type, services, family_income, working_people)
+         (record_id, housing_type, available_services, family_income, working_family_members)
          VALUES (?, ?, ?, ?, ?)`,
         [
           recordId,
@@ -699,8 +808,8 @@ export const createDocument = async (recordId: number, documentData: any): Promi
   try {
     await db.query(
       `INSERT INTO record_documents 
-       (record_id, document_type, file_path, file_name, file_size, original_name, uploaded_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (record_id, document_type, file_path, file_name, file_size, original_name, uploaded_by, google_drive_id, google_drive_url, google_drive_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         recordId,
         cleanValue(documentData.document_type),
@@ -708,11 +817,129 @@ export const createDocument = async (recordId: number, documentData: any): Promi
         cleanValue(documentData.file_name),
         cleanValue(documentData.file_size),
         cleanValue(documentData.original_name),
-        cleanValue(documentData.uploaded_by) || null // Allow NULL if no uploaded_by
+        cleanValue(documentData.uploaded_by) || null, // Allow NULL if no uploaded_by
+        cleanValue(documentData.google_drive_id) || null,
+        cleanValue(documentData.google_drive_url) || null,
+        cleanValue(documentData.google_drive_name) || null
       ]
     );
   } catch (err) {
     console.error('Error in createDocument:', err);
+    throw err;
+  }
+};
+
+export const createOrUpdateFamilyInformation = async (recordId: number, familyInformation: any): Promise<void> => {
+  try {
+    console.log('Creating/updating family information for record:', recordId);
+    console.log('Family information:', familyInformation);
+    
+    await createOrUpdateFamilyInfo(recordId, familyInformation);
+    console.log('Family information created/updated successfully');
+  } catch (err) {
+    console.error('Error in createOrUpdateFamilyInformation:', err);
+    throw err;
+  }
+};
+
+// Update Phase 3 data (for modifications)
+export const updatePhase3Data = async (id: number, phase3Data: any): Promise<void> => {
+  try {
+    console.log('=== UPDATING PHASE 3 DATA ===');
+    console.log('Record ID:', id);
+    console.log('Phase 3 Data:', JSON.stringify(phase3Data, null, 2));
+
+    // Update complete personal data
+    if (phase3Data.complete_personal_data) {
+      const [existingRows] = await db.query(
+        'SELECT id FROM complete_personal_data WHERE record_id = ?',
+        [id]
+      ) as [any[], any];
+
+      if (existingRows.length > 0) {
+        // Update existing data
+        await db.query(
+          `UPDATE complete_personal_data SET 
+           registration_date = ?, full_name = ?, pcd_name = ?, cedula = ?, gender = ?, 
+           birth_date = ?, age = ?, birth_place = ?, exact_address = ?, province = ?, 
+           canton = ?, district = ?, primary_phone = ?, secondary_phone = ?, email = ?,
+           updated_at = CURRENT_TIMESTAMP
+           WHERE record_id = ?`,
+          [
+            cleanValue(phase3Data.complete_personal_data.registration_date),
+            cleanValue(phase3Data.complete_personal_data.full_name),
+            cleanValue(phase3Data.complete_personal_data.pcd_name),
+            cleanValue(phase3Data.complete_personal_data.cedula),
+            cleanValue(phase3Data.complete_personal_data.gender),
+            cleanValue(phase3Data.complete_personal_data.birth_date),
+            cleanValue(phase3Data.complete_personal_data.age),
+            cleanValue(phase3Data.complete_personal_data.birth_place),
+            cleanValue(phase3Data.complete_personal_data.exact_address),
+            cleanValue(phase3Data.complete_personal_data.province),
+            cleanValue(phase3Data.complete_personal_data.canton),
+            cleanValue(phase3Data.complete_personal_data.district),
+            cleanValue(phase3Data.complete_personal_data.primary_phone),
+            cleanValue(phase3Data.complete_personal_data.secondary_phone),
+            cleanValue(phase3Data.complete_personal_data.email),
+            id
+          ]
+        );
+      } else {
+        // Create new data
+        await db.query(
+          `INSERT INTO complete_personal_data 
+           (record_id, registration_date, full_name, pcd_name, cedula, gender, 
+            birth_date, age, birth_place, exact_address, province, canton, district, 
+            primary_phone, secondary_phone, email)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            cleanValue(phase3Data.complete_personal_data.registration_date),
+            cleanValue(phase3Data.complete_personal_data.full_name),
+            cleanValue(phase3Data.complete_personal_data.pcd_name),
+            cleanValue(phase3Data.complete_personal_data.cedula),
+            cleanValue(phase3Data.complete_personal_data.gender),
+            cleanValue(phase3Data.complete_personal_data.birth_date),
+            cleanValue(phase3Data.complete_personal_data.age),
+            cleanValue(phase3Data.complete_personal_data.birth_place),
+            cleanValue(phase3Data.complete_personal_data.exact_address),
+            cleanValue(phase3Data.complete_personal_data.province),
+            cleanValue(phase3Data.complete_personal_data.canton),
+            cleanValue(phase3Data.complete_personal_data.district),
+            cleanValue(phase3Data.complete_personal_data.primary_phone),
+            cleanValue(phase3Data.complete_personal_data.secondary_phone),
+            cleanValue(phase3Data.complete_personal_data.email)
+          ]
+        );
+      }
+    }
+
+    // Update family information
+    if (phase3Data.family_information) {
+      await createOrUpdateFamilyInformation(id, phase3Data.family_information);
+    }
+
+    // Update disability information
+    if (phase3Data.disability_information) {
+      await createOrUpdateDisabilityData(id, phase3Data.disability_information);
+    }
+
+    // Update socioeconomic information
+    if (phase3Data.socioeconomic_information) {
+      await createOrUpdateSocioeconomicData(id, phase3Data.socioeconomic_information);
+    }
+
+    // Update documentation requirements
+    if (phase3Data.documentation_requirements) {
+      await createOrUpdateRegistrationRequirements(id, phase3Data.documentation_requirements);
+    }
+
+    // Update record status back to pending
+    await db.query('UPDATE records SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['pending', id]) as [any, any];
+
+    console.log('Phase 3 data updated successfully');
+  } catch (err) {
+    console.error('Error in updatePhase3Data:', err);
     throw err;
   }
 }; 

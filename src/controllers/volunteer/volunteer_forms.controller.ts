@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import * as VolunteerModel from '../../models/volunteer/volunteer_forms.model';
 import { volunteerCache } from '../../services/volunteer-cache.service';
+import { AuthRequest } from '../../middleware/auth.middleware';
+import { getUserById } from '../../models/user/user.model';
 
 
 // Get all volunteers with pagination and filtering
@@ -104,5 +106,89 @@ export const deleteVolunteer = async (req: Request, res: Response): Promise<void
     res.json({ message: 'Volunteer deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete volunteer' });
+  }
+};
+
+// Enroll current user into a volunteer option using account data
+export const enrollCurrentUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const optionId = parseInt(req.params.optionId);
+    if (!req.user || !req.user.userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const user = await getUserById(req.user.userId);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const result = await VolunteerModel.enrollUserIntoVolunteerOption(user, optionId);
+
+    // Invalidate list cache
+    volunteerCache.invalidateVolunteers();
+
+    res.status(result.created ? 201 : 200).json({
+      message: result.created ? 'Enrolled successfully' : 'Already enrolled',
+      volunteerId: result.volunteerId,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to enroll into volunteer option' });
+  }
+};
+
+// Get current user's volunteer enrollments
+export const getMyEnrollments = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || !req.user.userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const user = await getUserById(req.user.userId);
+    if (!user) {
+      res.json({ enrollments: [] });
+      return;
+    }
+    const enrollments = await VolunteerModel.getEnrollmentsByEmail(user.email || '');
+    res.json({ enrollments });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch enrollments' });
+  }
+};
+
+// Unenroll current user from a volunteer option
+export const unenrollCurrentUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const volunteerId = parseInt(req.params.volunteerId);
+    if (!req.user || !req.user.userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const user = await getUserById(req.user.userId);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Verify that the volunteer enrollment belongs to the user
+    const enrollments = await VolunteerModel.getEnrollmentsByEmail(user.email || '');
+    const enrollment = enrollments.find(e => e.volunteer_id === volunteerId);
+    
+    if (!enrollment) {
+      res.status(404).json({ error: 'Enrollment not found or not owned by user' });
+      return;
+    }
+
+    // Delete the volunteer enrollment
+    await VolunteerModel.deleteVolunteer(volunteerId);
+
+    // Invalidate cache
+    volunteerCache.invalidateVolunteers();
+
+    res.json({ message: 'Successfully unenrolled from volunteer option' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to unenroll from volunteer option' });
   }
 };

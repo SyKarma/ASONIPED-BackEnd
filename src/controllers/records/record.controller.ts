@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import * as RecordModel from '../../models/records/record.model';
 import * as PersonalDataModel from '../../models/records/personal_data.model';
+import { createOrUpdateCompletePersonalData } from '../../models/records/complete_personal_data.model';
 import { db } from '../../db';
+import googleDriveService from '../../services/googleDriveOAuth.service';
 
 // Create new record
 export const createRecord = async (req: Request, res: Response): Promise<void> => {
@@ -145,6 +147,8 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
     const formData = req.body.data ? JSON.parse(req.body.data) : req.body;
     
     const {
+      complete_personal_data,
+      family_information,
       disability_information,
       socioeconomic_information,
       documentation_requirements
@@ -156,9 +160,24 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
       status: 'pending'
     });
     
+    // Create/update complete personal data
+    if (complete_personal_data) {
+      await createOrUpdateCompletePersonalData(id, complete_personal_data);
+    }
+    
+    // Create/update family information
+    if (family_information) {
+      await RecordModel.createOrUpdateFamilyInformation(id, family_information);
+    }
+    
     // Create/update disability information
     if (disability_information) {
+      console.log('=== CONTROLLER: SAVING DISABILITY DATA ===');
+      console.log('Record ID:', id);
+      console.log('Disability Information:', JSON.stringify(disability_information, null, 2));
       await RecordModel.createOrUpdateDisabilityData(id, disability_information);
+    } else {
+      console.log('No disability information provided');
     }
     
     // Create/update documentation requirements
@@ -168,11 +187,43 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
     
     // Create/update socioeconomic information
     if (socioeconomic_information) {
+      console.log('=== CONTROLLER: SAVING SOCIOECONOMIC DATA ===');
+      console.log('Record ID:', id);
+      console.log('Socioeconomic Information:', JSON.stringify(socioeconomic_information, null, 2));
       await RecordModel.createOrUpdateSocioeconomicData(id, socioeconomic_information);
+    } else {
+      console.log('No socioeconomic information provided');
     }
     
     // Process documents if they exist
     if (req.files && Array.isArray(req.files)) {
+      // Create user folder in ASONIPED-Records-Shared
+      let userFolderId = null;
+      try {
+        if (complete_personal_data && complete_personal_data.full_name && complete_personal_data.cedula) {
+          const folderName = `${complete_personal_data.full_name} - ${complete_personal_data.cedula}`;
+          const parentFolderId = '1g8DwK78x4SOXSRo2jyqQWBCMVkonH38e'; // ASONIPED-Records-Shared folder ID
+          
+          console.log('Creating user folder in ASONIPED-Records-Shared:', folderName);
+          
+          // Check if folder already exists in the parent folder
+          const existingFolders = await googleDriveService.listFiles(parentFolderId);
+          const existingFolder = existingFolders.find(folder => folder.name === folderName);
+          
+          if (existingFolder) {
+            userFolderId = existingFolder.id;
+            console.log('Using existing user folder:', existingFolder);
+          } else {
+            const folderResult = await googleDriveService.createFolder(folderName, parentFolderId);
+            userFolderId = folderResult.id;
+            console.log('User folder created successfully in ASONIPED-Records-Shared:', folderResult);
+          }
+        }
+      } catch (folderError) {
+        console.error('Error creating user folder:', folderError);
+        // Continue without folder if creation fails
+      }
+
       for (const file of req.files) {
         const userId = (req as any).user?.userId || (req as any).user?.id;
         
@@ -183,12 +234,13 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
             'dictamen_medico': 'medical_diagnosis',
             'constancia_nacimiento': 'birth_certificate',
             'copia_cedula': 'cedula',
-            'copias_cedulas_familia': 'cedula',
+            'copias_cedulas_familia': 'copias_cedulas_familia',
             'foto_pasaporte': 'photo',
             'constancia_pension_ccss': 'pension_certificate',
-            'constancia_pension_alimentaria': 'pension_certificate',
+            'constancia_pension_alimentaria': 'pension_alimentaria',
             'constancia_estudio': 'study_certificate',
-            'cuenta_banco_nacional': 'other'
+            'cuenta_banco_nacional': 'cuenta_banco_nacional',
+            'informacion_pago': 'payment_info'
           };
           
           // If we have a specific fieldname, use it
@@ -217,17 +269,29 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
             if (fileName.includes('nacimiento') || fileName.includes('birth') || fileName.includes('partida')) {
               return 'birth_certificate';
             }
+            if (fileName.includes('cedula') && fileName.includes('familia')) {
+              return 'copias_cedulas_familia';
+            }
             if (fileName.includes('cedula') || fileName.includes('identificacion') || fileName.includes('identificación') || fileName.includes('dni') || fileName.includes('carnet')) {
               return 'cedula';
             }
             if (fileName.includes('foto') || fileName.includes('photo') || fileName.includes('imagen') || fileName.includes('retrato')) {
               return 'photo';
             }
+            if (fileName.includes('pension') && fileName.includes('alimentaria')) {
+              return 'pension_alimentaria';
+            }
             if (fileName.includes('pension') || fileName.includes('ccss') || fileName.includes('pensión')) {
               return 'pension_certificate';
             }
             if (fileName.includes('estudio') || fileName.includes('study') || fileName.includes('academico') || fileName.includes('académico')) {
               return 'study_certificate';
+            }
+            if (fileName.includes('banco') || fileName.includes('nacional')) {
+              return 'cuenta_banco_nacional';
+            }
+            if (fileName.includes('pago') || fileName.includes('payment') || fileName.includes('informacion')) {
+              return 'payment_info';
             }
             if (fileName.includes('socioeconomica') || fileName.includes('socioeconómica') || fileName.includes('beca') || fileName.includes('solicitud')) {
               return 'other';
@@ -251,14 +315,41 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
         
         const documentType = mapDocumentType(file.fieldname || '', file.originalname || '');
         
-        // Create document for any user (not just admin)
+        // Upload to Google Drive
+        let googleDriveData = null;
+        try {
+          console.log('Uploading file to Google Drive:', file.originalname);
+          const driveFileName = googleDriveService.generateFileName(documentType, id, file.originalname);
+          const mimeType = file.mimetype || 'application/octet-stream';
+          
+          const driveResult = await googleDriveService.uploadFile(
+            file.buffer, // Use buffer data directly
+            driveFileName,
+            mimeType,
+            userFolderId // Upload to user's specific folder
+          );
+          
+          googleDriveData = {
+            google_drive_id: driveResult.id,
+            google_drive_url: driveResult.webViewLink,
+            google_drive_name: driveResult.name
+          };
+          
+          console.log('File uploaded to Google Drive successfully:', driveResult);
+        } catch (driveError) {
+          console.error('Error uploading to Google Drive:', driveError);
+          // Continue without Google Drive data if upload fails
+        }
+        
+        // Create document for any user (not just admin) - only store Google Drive data
         await RecordModel.createDocument(id, {
           document_type: documentType,
-          file_path: file.path || '',
-          file_name: file.filename || '',
+          file_path: '', // Don't store local path since we're using Google Drive
+          file_name: googleDriveData?.google_drive_name || file.originalname || '',
           file_size: file.size || 0,
           original_name: file.originalname || '',
-          uploaded_by: userId
+          uploaded_by: userId,
+          ...googleDriveData
         });
       }
     }
@@ -271,7 +362,7 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
       
       if (adminRows.length > 0) {
         await RecordModel.addNote(id, {
-          note: 'Record completed - Phase 3',
+          note: 'Expediente completado - Fase 3',
           type: 'milestone',
           created_by: userId
         });
@@ -410,28 +501,46 @@ export const approvePhase1 = async (req: Request, res: Response): Promise<void> 
     const id = parseInt(req.params.id);
     const { comment } = req.body;
     
-    await RecordModel.approvePhase1(id);
+    console.log('=== APPROVAL PROCESS START ===');
+    console.log('Record ID:', id);
+    console.log('Comment:', comment);
+    console.log('User ID:', (req as any).user?.userId || (req as any).user?.id);
     
-    // Add comment if provided (only if user is admin)
-    if (comment) {
+    await RecordModel.approvePhase1(id);
+    console.log('Record status updated to phase3');
+    
+    // Add approval comment
+    try {
+      const userId = (req as any).user?.userId || (req as any).user?.id;
+      
+      const noteData = {
+        note: comment ? `Fase 1 aprobada por el administrador: ${comment}` : 'Fase 1 aprobada por el administrador',
+        type: 'activity',
+        created_by: userId || null
+      };
+      
+      console.log('Creating approval comment:', noteData);
+      await RecordModel.addNote(id, noteData);
+      console.log('Approval comment created successfully');
+    } catch (noteError) {
+      console.error('Error adding approval comment:', noteError);
+      
+      // Try to add note without created_by if there's an error
       try {
-        const userId = (req as any).user?.userId || (req as any).user?.id;
-        // Check if user exists in admins table
-        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
-        
-        if (adminRows.length > 0) {
-          await RecordModel.addNote(id, {
-            note: comment,
-            type: 'activity',
-            created_by: userId
-          });
-        }
-      } catch (noteError) {
-        console.error('Error adding comment:', noteError);
-        // Don't fail operation if comment fails
+        const fallbackNoteData = {
+          note: comment ? `Fase 1 aprobada por el administrador: ${comment}` : 'Fase 1 aprobada por el administrador',
+          type: 'activity',
+          created_by: undefined
+        };
+        console.log('Trying fallback note creation:', fallbackNoteData);
+        await RecordModel.addNote(id, fallbackNoteData);
+        console.log('Fallback approval comment created successfully');
+      } catch (fallbackError) {
+        console.error('Fallback approval note creation also failed:', fallbackError);
       }
     }
     
+    console.log('=== APPROVAL PROCESS COMPLETE ===');
     res.json({ message: 'Phase 1 approved successfully' });
   } catch (err) {
     console.error('Error approving phase 1:', err);
@@ -445,25 +554,42 @@ export const rejectPhase1 = async (req: Request, res: Response): Promise<void> =
     const id = parseInt(req.params.id);
     const { comment } = req.body;
     
+    // Verify the record exists
+    const [recordCheck] = await db.query('SELECT id, record_number, status FROM records WHERE id = ?', [id]) as [any[], any];
+    
+    if (recordCheck.length === 0) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+    
     await RecordModel.rejectPhase1(id);
     
-    // Add comment if provided (only if user is admin)
+    // Add comment if provided
     if (comment) {
       try {
         const userId = (req as any).user?.userId || (req as any).user?.id;
-        // Check if user exists in admins table
-        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
         
-        if (adminRows.length > 0) {
-          await RecordModel.addNote(id, {
-            note: comment,
-            type: 'activity',
-            created_by: userId
-          });
-        }
+        const noteData = {
+          note: comment ? `Expediente rechazado por el administrador: ${comment}` : 'Expediente rechazado por el administrador',
+          type: 'activity',
+          created_by: userId || null
+        };
+        
+        await RecordModel.addNote(id, noteData);
       } catch (noteError) {
         console.error('Error adding rejection comment:', noteError);
-        // Don't fail operation if comment fails
+        
+        // Try to add note without created_by if there's an error
+        try {
+          const fallbackNoteData = {
+            note: comment ? `Expediente rechazado por el administrador: ${comment}` : 'Expediente rechazado por el administrador',
+            type: 'activity',
+            created_by: undefined
+          };
+          await RecordModel.addNote(id, fallbackNoteData);
+        } catch (fallbackError) {
+          console.error('Fallback note creation also failed:', fallbackError);
+        }
       }
     }
     
@@ -471,6 +597,196 @@ export const rejectPhase1 = async (req: Request, res: Response): Promise<void> =
   } catch (err) {
     console.error('Error rejecting phase 1:', err);
     res.status(500).json({ error: 'Error rejecting phase 1' });
+  }
+};
+
+// Request modification for phase 1
+export const requestPhase1Modification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { comment } = req.body;
+    
+    // Verify the record exists
+    const [recordCheck] = await db.query('SELECT id, record_number, status FROM records WHERE id = ?', [id]) as [any[], any];
+    
+    if (recordCheck.length === 0) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+    
+    await RecordModel.requestPhase1Modification(id);
+    
+    // Add comment if provided
+    if (comment) {
+      try {
+        const userId = (req as any).user?.userId || (req as any).user?.id;
+        
+        const noteData = {
+          note: comment ? `Modificación solicitada por el administrador: ${comment}` : 'Modificación solicitada por el administrador',
+          type: 'activity',
+          created_by: userId || null
+        };
+        
+        await RecordModel.addNote(id, noteData);
+      } catch (noteError) {
+        console.error('Error adding modification comment:', noteError);
+        
+        // Try to add note without created_by if there's an error
+        try {
+          const fallbackNoteData = {
+            note: comment ? `Modificación solicitada por el administrador: ${comment}` : 'Modificación solicitada por el administrador',
+            type: 'activity',
+            created_by: undefined
+          };
+          await RecordModel.addNote(id, fallbackNoteData);
+        } catch (fallbackError) {
+          console.error('Fallback note creation also failed:', fallbackError);
+        }
+      }
+    }
+    
+    res.json({ message: 'Modification requested successfully' });
+  } catch (err) {
+    console.error('Error requesting modification:', err);
+    res.status(500).json({ error: 'Error requesting modification' });
+  }
+};
+
+// Request modification for phase 3
+export const requestPhase3Modification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { comment, sections_to_modify, documents_to_replace } = req.body;
+    
+    console.log('=== REQUEST PHASE 3 MODIFICATION ===');
+    console.log('Record ID:', id);
+    console.log('Comment:', comment);
+    console.log('Sections to modify:', sections_to_modify);
+    console.log('Sections to modify type:', typeof sections_to_modify);
+    console.log('Sections to modify length:', sections_to_modify?.length);
+    console.log('Documents to replace:', documents_to_replace);
+    console.log('Documents to replace type:', typeof documents_to_replace);
+    console.log('Documents to replace length:', documents_to_replace?.length);
+    
+    // Verify the record exists
+    const [recordCheck] = await db.query('SELECT id, record_number, status, phase FROM records WHERE id = ?', [id]) as [any[], any];
+    
+    if (recordCheck.length === 0) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+    
+    // Check if record is in phase 3
+    if (recordCheck[0].phase !== 'phase3') {
+      res.status(400).json({ error: 'Record must be in Phase 3 to request modifications' });
+      return;
+    }
+    
+    // Update record status to needs_modification
+    await RecordModel.updateRecordStatus(id, 'needs_modification');
+    
+    // Create structured note with sections and documents
+    
+    try {
+      const userId = (req as any).user?.userId || (req as any).user?.id;
+      console.log('User ID:', userId);
+      
+      // Check if user exists in admins table
+      let validCreatedBy = null;
+      if (userId) {
+        try {
+          const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
+          if (adminRows.length > 0) {
+            validCreatedBy = userId;
+            console.log('User found in admins table, using as created_by');
+          } else {
+            console.log('User not found in admins table, setting created_by to null');
+          }
+        } catch (adminCheckError) {
+          console.error('Error checking admin table:', adminCheckError);
+          console.log('Setting created_by to null due to error');
+        }
+      }
+      
+      // Use the structured note format
+      const noteData = {
+        note: `Modificación de Fase 3 solicitada por el administrador: ${comment || 'Sin comentarios específicos'}`,
+        admin_comment: comment || null,
+        sections_to_modify: sections_to_modify ? JSON.stringify(sections_to_modify) : null,
+        documents_to_replace: documents_to_replace ? JSON.stringify(documents_to_replace) : null,
+        modification_metadata: JSON.stringify({
+          requested_at: new Date().toISOString(),
+          requested_by: userId || null,
+          modification_type: 'phase3_modification'
+        }),
+        type: 'activity',
+        modification_type: 'phase3_modification',
+        created_by: validCreatedBy
+      };
+      
+      await RecordModel.addStructuredNote(id, noteData);
+      console.log('Structured note created successfully');
+    } catch (noteError) {
+      console.error('Error adding Phase 3 modification comment:', noteError);
+      console.error('Error details:', {
+        message: noteError instanceof Error ? noteError.message : 'Unknown error',
+        stack: noteError instanceof Error ? noteError.stack : undefined,
+        name: noteError instanceof Error ? noteError.name : undefined
+      });
+      
+      // Fallback to simple note if structured note fails
+      try {
+        const fallbackNoteData = {
+          note: `Modificación de Fase 3 solicitada por el administrador: ${comment || 'Sin comentarios específicos'}`,
+          type: 'activity',
+          created_by: undefined
+        };
+        console.log('Trying fallback note creation:', fallbackNoteData);
+        await RecordModel.addNote(id, fallbackNoteData);
+        console.log('Fallback note created successfully');
+      } catch (fallbackError) {
+        console.error('Fallback note creation also failed:', fallbackError);
+      }
+    }
+    
+    res.json({ message: 'Phase 3 modification requested successfully' });
+  } catch (err) {
+    console.error('Error requesting Phase 3 modification:', err);
+    res.status(500).json({ error: 'Error requesting Phase 3 modification' });
+  }
+};
+
+// Update phase 1 data (for modifications)
+export const updatePhase1Data = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const personalData = req.body;
+    
+    await RecordModel.updatePhase1Data(id, personalData);
+    
+    res.json({ message: 'Phase 1 data updated successfully' });
+  } catch (err) {
+    console.error('Error updating phase 1 data:', err);
+    res.status(500).json({ error: 'Error updating phase 1 data' });
+  }
+};
+
+// Update Phase 3 data
+export const updatePhase3Data = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const phase3Data = req.body;
+    
+    console.log('=== UPDATE PHASE 3 DATA CONTROLLER ===');
+    console.log('Record ID:', id);
+    console.log('Phase 3 Data received:', JSON.stringify(phase3Data, null, 2));
+    
+    await RecordModel.updatePhase3Data(id, phase3Data);
+    
+    res.json({ message: 'Phase 3 data updated successfully' });
+  } catch (err) {
+    console.error('Error updating phase 3 data:', err);
+    res.status(500).json({ error: 'Error actualizando datos de fase 3' });
   }
 };
 
@@ -515,25 +831,42 @@ export const rejectRecord = async (req: Request, res: Response): Promise<void> =
     const id = parseInt(req.params.id);
     const { comment } = req.body;
     
+    // Verify the record exists
+    const [recordCheck] = await db.query('SELECT id, record_number, status FROM records WHERE id = ?', [id]) as [any[], any];
+    
+    if (recordCheck.length === 0) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+    
     await RecordModel.rejectRecord(id);
     
-    // Add comment if provided (only if user is admin)
+    // Add comment if provided
     if (comment) {
       try {
         const userId = (req as any).user?.userId || (req as any).user?.id;
-        // Check if user exists in admins table
-        const [adminRows] = await db.query('SELECT id FROM admins WHERE id = ?', [userId]) as [any[], any];
         
-        if (adminRows.length > 0) {
-          await RecordModel.addNote(id, {
-            note: comment,
-            type: 'activity',
-            created_by: userId
-          });
-        }
+        const noteData = {
+          note: comment ? `Expediente rechazado por el administrador: ${comment}` : 'Expediente rechazado por el administrador',
+          type: 'activity',
+          created_by: userId || null
+        };
+        
+        await RecordModel.addNote(id, noteData);
       } catch (noteError) {
         console.error('Error adding rejection comment:', noteError);
-        // Don't fail operation if comment fails
+        
+        // Try to add note without created_by if there's an error
+        try {
+          const fallbackNoteData = {
+            note: comment ? `Expediente rechazado por el administrador: ${comment}` : 'Expediente rechazado por el administrador',
+            type: 'activity',
+            created_by: undefined
+          };
+          await RecordModel.addNote(id, fallbackNoteData);
+        } catch (fallbackError) {
+          console.error('Fallback note creation also failed:', fallbackError);
+        }
       }
     }
     
@@ -653,5 +986,3 @@ export const checkPersonalDataTable = async (req: Request, res: Response): Promi
     res.status(500).json({ error: 'Error checking table', details: (err as Error).message });
   }
 };
-
- 

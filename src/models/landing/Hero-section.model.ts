@@ -3,7 +3,7 @@ import { db } from '../../db';
 export interface HeroSection {
   id?: number;
   titulo: string;
-  URL_imagen?: string;
+  url_imagen?: string;
   descripcion: string;
   texto_boton_izquierdo: string;
   color_boton_izquierdo?: string;
@@ -24,10 +24,10 @@ export const HeroSectionModel = {
 // Crea una nueva sección hero
   async create(section: HeroSection): Promise<number> {
     const [result] = await db.query(
-      'INSERT INTO hero_section (titulo, URL_imagen, descripcion, texto_boton_izquierdo, color_boton_izquierdo, texto_boton_derecho, color_boton_derecho) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO hero_section (titulo, url_imagen, descripcion, texto_boton_izquierdo, color_boton_izquierdo, texto_boton_derecho, color_boton_derecho) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [
         section.titulo,
-        section.URL_imagen,
+        section.url_imagen,
         section.descripcion,
         section.texto_boton_izquierdo,
         section.color_boton_izquierdo || 'orange',

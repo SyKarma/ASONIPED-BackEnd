@@ -150,6 +150,8 @@ export interface VolunteerEnrollment {
   option_imageUrl: string;
   option_date: string;
   option_location: string;
+  option_skills?: string;
+  option_tools?: string;
 }
 
 // Get enrollments for a user by email, joined with volunteer_options
@@ -160,7 +162,8 @@ export const getEnrollmentsByEmail = async (email: string): Promise<VolunteerEnr
   const [rows] = await db.query(
     `SELECT v.id as volunteer_id, v.status, v.submission_date, v.volunteer_option_id,
             o.title as option_title, o.description as option_description, o.imageUrl as option_imageUrl,
-            o.date as option_date, o.location as option_location
+            o.date as option_date, o.location as option_location,
+            o.skills as option_skills, o.tools as option_tools
      FROM volunteers v
      LEFT JOIN volunteer_options o ON v.volunteer_option_id = o.id
      WHERE v.email = ?

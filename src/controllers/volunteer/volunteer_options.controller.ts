@@ -31,7 +31,29 @@ export const getVolunteerOptions = async (req: Request, res: Response): Promise<
 // Add a new volunteer option
 export const addVolunteerOption = async (req: Request, res: Response): Promise<void> => {
   try {
-    await VolunteerOptionModel.createVolunteerOption(req.body);
+    const { title, description, date, location, skills, tools } = req.body as any;
+
+    // Save image if provided
+    let imageUrl: string | undefined;
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (file && file.buffer) {
+      const uploadDir = path.join(__dirname, '../../..', 'uploads', 'volunteer-options');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      const filename = `${Date.now()}-${file.originalname}`.replace(/\s+/g, '_');
+      const fullPath = path.join(uploadDir, filename);
+      fs.writeFileSync(fullPath, file.buffer);
+      imageUrl = `/uploads/volunteer-options/${filename}`;
+    }
+
+    await VolunteerOptionModel.createVolunteerOption({
+      title,
+      description,
+      imageUrl: imageUrl || '',
+      date,
+      location,
+      skills,
+      tools,
+    } as any);
     
     // Invalidate options cache
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey());
@@ -46,7 +68,28 @@ export const addVolunteerOption = async (req: Request, res: Response): Promise<v
 export const updateVolunteerOption = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    await VolunteerOptionModel.updateVolunteerOption(id, req.body);
+    const { title, description, date, location, skills, tools } = req.body as any;
+
+    let imageUrl: string | undefined;
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (file && file.buffer) {
+      const uploadDir = path.join(__dirname, '../../..', 'uploads', 'volunteer-options');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      const filename = `${Date.now()}-${file.originalname}`.replace(/\s+/g, '_');
+      const fullPath = path.join(uploadDir, filename);
+      fs.writeFileSync(fullPath, file.buffer);
+      imageUrl = `/uploads/volunteer-options/${filename}`;
+    }
+
+    await VolunteerOptionModel.updateVolunteerOption(id, {
+      title,
+      description,
+      imageUrl: imageUrl ?? (req.body.imageUrl as string),
+      date,
+      location,
+      skills,
+      tools,
+    } as any);
     
     // Invalidate options cache
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey());
@@ -142,14 +185,49 @@ export const getAllProposals = async (req: Request, res: Response): Promise<void
 export const setProposalStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { status, note } = req.body as { status: 'approved' | 'rejected'; note?: string };
-    if (!['approved', 'rejected'].includes(status)) {
+    const { status, note } = req.body as { status: 'approved' | 'rejected' | 'filed'; note?: string };
+    if (!['approved', 'rejected', 'filed'].includes(status)) {
       res.status(400).json({ error: 'Invalid status' });
       return;
     }
-    await VolunteerOptionModel.updateProposalStatus(id, status, note);
+    // Map 'filed' to DB-safe state: store as 'rejected' with a filed marker in note
+    const mappedStatus = status === 'filed' ? 'rejected' : status;
+    const mappedNote = status === 'filed'
+      ? `${note ? note + ' ' : ''}[ARCHIVED]`
+      : note;
+
+    await VolunteerOptionModel.updateProposalStatus(id, mappedStatus as any, mappedNote);
     res.json({ message: 'Proposal updated' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update proposal' });
+  }
+};
+
+// User: delete my own proposal
+export const deleteMyProposal = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const proposalId = parseInt(req.params.id);
+    const userId = req.user?.userId;
+    
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // First, verify that the proposal belongs to the user
+    const proposals = await VolunteerOptionModel.getProposalsByUser(userId);
+    const proposal = proposals.find(p => p.id === proposalId);
+    
+    if (!proposal) {
+      res.status(404).json({ error: 'Proposal not found or not owned by user' });
+      return;
+    }
+
+    // Delete the proposal
+    await VolunteerOptionModel.deleteProposal(proposalId);
+    
+    res.json({ message: 'Proposal deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete proposal' });
   }
 };

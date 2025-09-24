@@ -4,7 +4,9 @@ CREATE TABLE volunteer_options (
   description TEXT NOT NULL,
   imageUrl VARCHAR(255) NOT NULL,
   date VARCHAR(50) NOT NULL,
-  location VARCHAR(255) NOT NULL
+  location VARCHAR(255) NOT NULL,
+  skills TEXT,
+  tools TEXT
 );
 
 -- New: Proposals table for volunteer options

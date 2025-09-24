@@ -156,3 +156,39 @@ export const getMyEnrollments = async (req: AuthRequest, res: Response): Promise
     res.status(500).json({ error: 'Failed to fetch enrollments' });
   }
 };
+
+// Unenroll current user from a volunteer option
+export const unenrollCurrentUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const volunteerId = parseInt(req.params.volunteerId);
+    if (!req.user || !req.user.userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const user = await getUserById(req.user.userId);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Verify that the volunteer enrollment belongs to the user
+    const enrollments = await VolunteerModel.getEnrollmentsByEmail(user.email || '');
+    const enrollment = enrollments.find(e => e.volunteer_id === volunteerId);
+    
+    if (!enrollment) {
+      res.status(404).json({ error: 'Enrollment not found or not owned by user' });
+      return;
+    }
+
+    // Delete the volunteer enrollment
+    await VolunteerModel.deleteVolunteer(volunteerId);
+
+    // Invalidate cache
+    volunteerCache.invalidateVolunteers();
+
+    res.json({ message: 'Successfully unenrolled from volunteer option' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to unenroll from volunteer option' });
+  }
+};

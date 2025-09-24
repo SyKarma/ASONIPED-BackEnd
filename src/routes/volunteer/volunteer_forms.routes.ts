@@ -14,6 +14,9 @@ router.get('/me', authenticateToken, VolunteerController.getMyEnrollments);
 // Enroll current user into a volunteer option
 router.post('/enroll/:optionId', authenticateToken, VolunteerController.enrollCurrentUser);
 
+// Unenroll current user from a volunteer option
+router.delete('/unenroll/:volunteerId', authenticateToken, VolunteerController.unenrollCurrentUser);
+
 // Get a single volunteer by ID
 router.get('/:id', VolunteerController.getVolunteerById);
 

@@ -31,8 +31,7 @@ import ticketMessageRoutes from './routes/donations/ticket_message.routes';
 import anonymousTicketRoutes from './routes/donations/anonymous_ticket.routes';
 import heroSectionRoutes from './routes/landing/Hero-section.routes';
 import aboutSectionRoutes from './routes/landing/About-section.routes';
-import landingDonacionesComponentRoutes from './routes/landing/landing-donaciones-component.routes';
-import landingDonacionesCardRoutes from './routes/landing/landing-donaciones-card.routes';
+import uploadRoutes from './routes/landing/upload.routes';
 import landingVolunteerRoutes from './routes/landing/landing-volunteer.routes';
 
 // Load environment variables
@@ -49,8 +48,12 @@ const io = setupSocketIO(server);
 
 // Middleware configuration
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use(express.json());
-app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true
+}));
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -133,11 +136,10 @@ app.use('/records', recordRoutes);
 app.use('/donation-tickets', donationTicketRoutes);
 app.use('/ticket-messages', ticketMessageRoutes);
 app.use('/anonymous-tickets', anonymousTicketRoutes);
-app.use('/hero-section', heroSectionRoutes);
-app.use('/about-section', aboutSectionRoutes);
-app.use('/landing-donaciones-component', landingDonacionesComponentRoutes);
-app.use('/landing-donaciones-card', landingDonacionesCardRoutes);
-app.use('/landing-volunteer', landingVolunteerRoutes);
+app.use('/api/hero-section', heroSectionRoutes);
+app.use('/api/about-section', aboutSectionRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/landing-volunteer', landingVolunteerRoutes);
 
 // Temporarily disabled - uncomment when needed
 // app.use('/records', recordDocumentRoutes);

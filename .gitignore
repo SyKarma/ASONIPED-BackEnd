@@ -1,7 +1,3 @@
-# Archivos de entorno
-.env
-
-
 # CARPETA DE UPLOADS - NO RASTREAR NADA
 uploads/
 uploads/*
@@ -16,4 +12,6 @@ node_modules/.package-lock.json
 node_modules/brace-expansion/index.js
 node_modules/brace-expansion/package.json
 /credentials
+/src/services/googleDriveOAuth.service.js
 
+.env

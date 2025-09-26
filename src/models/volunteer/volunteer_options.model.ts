@@ -7,6 +7,24 @@ export interface VolunteerOption {
   imageUrl: string;
   date: string;
   location: string;
+  skills?: string;
+  tools?: string;
+}
+
+export interface VolunteerOptionProposal {
+  id?: number;
+  user_id: number;
+  title: string;
+  proposal: string;
+  location: string;
+  date: string;
+  tools: string;
+  document_path?: string;
+  created_at?: Date;
+  status?: 'pending' | 'approved' | 'rejected';
+  admin_note?: string;
+  full_name?: string;
+  email?: string;
 }
 
 // Get all volunteer options
@@ -18,16 +36,16 @@ export const getAllVolunteerOptions = async (): Promise<VolunteerOption[]> => {
 // Add a new volunteer option
 export const createVolunteerOption = async (option: Omit<VolunteerOption, 'id'>): Promise<void> => {
   await db.query(
-    `INSERT INTO volunteer_options (title, description, imageUrl, date, location) VALUES (?, ?, ?, ?, ?)`,
-    [option.title, option.description, option.imageUrl, option.date, option.location]
+    `INSERT INTO volunteer_options (title, description, imageUrl, date, location, skills, tools) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [option.title, option.description, option.imageUrl, option.date, option.location, option.skills || null, option.tools || null]
   );
 };
 
 // Update a volunteer option
 export const updateVolunteerOption = async (id: number, option: Omit<VolunteerOption, 'id'>): Promise<void> => {
   await db.query(
-    `UPDATE volunteer_options SET title=?, description=?, imageUrl=?, date=?, location=? WHERE id=?`,
-    [option.title, option.description, option.imageUrl, option.date, option.location, id]
+    `UPDATE volunteer_options SET title=?, description=?, imageUrl=?, date=?, location=?, skills=?, tools=? WHERE id=?`,
+    [option.title, option.description, option.imageUrl, option.date, option.location, option.skills || null, option.tools || null, id]
   );
 };
 
@@ -37,4 +55,49 @@ export const deleteVolunteerOption = async (id: number): Promise<void> => {
   await db.query('UPDATE volunteers SET volunteer_option_id = NULL WHERE volunteer_option_id = ?', [id]);
   // Then delete the option
   await db.query('DELETE FROM volunteer_options WHERE id = ?', [id]);
+};
+
+// Store a volunteer option proposal locally
+export const createVolunteerOptionProposal = async (proposal: Omit<VolunteerOptionProposal, 'id' | 'created_at' | 'status' | 'admin_note'>): Promise<void> => {
+  await db.query(
+    `INSERT INTO volunteer_option_proposals (user_id, title, proposal, location, date, tools, document_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [proposal.user_id, proposal.title, proposal.proposal, proposal.location, proposal.date, proposal.tools, proposal.document_path || null]
+  );
+};
+
+export const getProposalsByUser = async (userId: number): Promise<VolunteerOptionProposal[]> => {
+  const [rows] = await db.query(
+    'SELECT * FROM volunteer_option_proposals WHERE user_id = ? ORDER BY created_at DESC',
+    [userId]
+  );
+  return rows as VolunteerOptionProposal[];
+};
+
+export const getAllProposals = async (): Promise<VolunteerOptionProposal[]> => {
+  const [rows] = await db.query(`
+    SELECT 
+      vop.*,
+      u.full_name,
+      u.email
+    FROM volunteer_option_proposals vop
+    LEFT JOIN users u ON vop.user_id = u.id
+    ORDER BY vop.created_at DESC
+  `);
+  return rows as VolunteerOptionProposal[];
+};
+
+export const updateProposalStatus = async (
+  id: number,
+  status: 'approved' | 'rejected' | 'filed',
+  adminNote?: string
+): Promise<void> => {
+  await db.query(
+    'UPDATE volunteer_option_proposals SET status = ?, admin_note = ? WHERE id = ?',
+    [status, adminNote || null, id]
+  );
+};
+
+export const deleteProposal = async (id: number): Promise<void> => {
+  await db.query('DELETE FROM volunteer_option_proposals WHERE id = ?', [id]);
 };

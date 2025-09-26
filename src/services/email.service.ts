@@ -126,7 +126,7 @@ export class EmailService {
         }
         .header {
             background: #0ea5e9;
-            color: black;
+            color: white;
             padding: 30px;
             text-align: center;
         }
@@ -155,21 +155,21 @@ export class EmailService {
             font-size: 14px;
         }
         .warning-box {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
+            background: #E6E6FA;
+            border: 1px solid #E6E6FA;
             border-radius: 6px;
             padding: 20px;
             margin: 20px 0;
         }
         .warning-box h3 {
             margin: 0 0 10px 0;
-            color: #856404;
+            color: #4169E1;
             font-size: 16px;
             font-weight: bold;
         }
         .warning-box p {
             margin: 0;
-            color: #856404;
+            color: #4169E1;
             font-size: 14px;
         }
         .button-container {
@@ -179,7 +179,7 @@ export class EmailService {
         .button {
             display: inline-block;
             background: #0ea5e9;
-            color: black;
+            color: white;
             padding: 12px 24px;
             text-decoration: none;
             border-radius: 6px;
@@ -316,122 +316,122 @@ export class EmailService {
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Verificación de Email - ASONIPED</title>
           <style>
-              body {
-                  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                  line-height: 1.6;
-                  color: #333;
-                  margin: 0;
-                  padding: 20px;
-                  background-color: #f5f5f5;
-              }
-              .container {
-                  max-width: 600px;
-                  margin: 0 auto;
-                  background: white;
-                  border-radius: 8px;
-                  overflow: hidden;
-                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-              }
-              .header {
-                  background: #0ea5e9;
-                  color: black;
-                  padding: 30px;
-                  text-align: center;
-              }
-              .header h1 {
-                  margin: 0;
-                  font-size: 24px;
-                  font-weight: bold;
-              }
-              .header p {
-                  margin: 5px 0 0 0;
-                  font-size: 14px;
-                  opacity: 0.9;
-              }
-              .content {
-                  padding: 30px;
-              }
-              .title {
-                  font-size: 20px;
-                  font-weight: bold;
-                  color: #333;
-                  margin-bottom: 15px;
-              }
-              .message {
-                  color: #666;
-                  margin-bottom: 25px;
-                  font-size: 14px;
-              }
-              .info-box {
-                  background: #f8f9fa;
-                  border: 1px solid #e9ecef;
-                  border-radius: 6px;
-                  padding: 20px;
-                  margin: 20px 0;
-              }
-              .info-box h3 {
-                  margin: 0 0 10px 0;
-                  color: #333;
-                  font-size: 16px;
-                  font-weight: bold;
-              }
-              .info-box p {
-                  margin: 0;
-                  color: #666;
-                  font-size: 14px;
-              }
-              .button-container {
-                  text-align: center;
-                  margin: 25px 0;
-              }
-              .button {
-                  display: inline-block;
-                  background: #0ea5e9;
-                  color: black;
-                  padding: 12px 24px;
-                  text-decoration: none;
-                  border-radius: 6px;
-                  font-weight: 600;
-                  font-size: 14px;
-              }
-              .instructions {
-                  margin-top: 25px;
-              }
-              .instructions h3 {
-                  margin: 0 0 10px 0;
-                  color: #333;
-                  font-size: 16px;
-                  font-weight: bold;
-              }
-              .instructions ol {
-                  margin: 0;
-                  padding-left: 20px;
-                  color: #666;
-                  font-size: 14px;
-              }
-              .instructions li {
-                  margin-bottom: 5px;
-              }
-              .footer {
-                  background: #f8f9fa;
-                  color: #666;
-                  padding: 20px 30px;
-                  text-align: center;
-                  font-size: 12px;
-                  border-top: 1px solid #e9ecef;
-              }
-              .footer p {
-                  margin: 3px 0;
-              }
-              .footer a {
-                  color: #dc2626;
-                  text-decoration: none;
-              }
-              .divider {
-                  height: 1px;
-                  background: #e9ecef;
-                  margin: 20px 0;
-              }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+            .header {
+                background: #0ea5e9;
+                color: white;
+                padding: 30px;
+                text-align: center;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 24px;
+                font-weight: bold;
+            }
+            .header p {
+                margin: 5px 0 0 0;
+                font-size: 14px;
+                opacity: 0.9;
+            }
+            .content {
+                padding: 30px;
+            }
+            .title {
+                font-size: 20px;
+                font-weight: bold;
+                color: #333;
+                margin-bottom: 15px;
+            }
+            .message {
+                color: #666;
+                margin-bottom: 25px;
+                font-size: 14px;
+            }
+            .warning-box {
+                background: #E6E6FA;
+                border: 1px solid #E6E6FA;
+                border-radius: 6px;
+                padding: 20px;
+                margin: 20px 0;
+            }
+            .warning-box h3 {
+                margin: 0 0 10px 0;
+                color: #4169E1;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            .warning-box p {
+                margin: 0;
+                color: #4169E1;
+                font-size: 14px;
+            }
+            .button-container {
+                text-align: center;
+                margin: 25px 0;
+            }
+            .button {
+                display: inline-block;
+                background: #0ea5e9;
+                color: white;
+                padding: 12px 24px;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 600;
+                font-size: 14px;
+            }
+            .instructions {
+                margin-top: 25px;
+            }
+            .instructions h3 {
+                margin: 0 0 10px 0;
+                color: #333;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            .instructions ol {
+                margin: 0;
+                padding-left: 20px;
+                color: #666;
+                font-size: 14px;
+            }
+            .instructions li {
+                margin-bottom: 5px;
+            }
+            .footer {
+                background: #f8f9fa;
+                color: #666;
+                padding: 20px 30px;
+                text-align: center;
+                font-size: 12px;
+                border-top: 1px solid #e9ecef;
+            }
+            .footer p {
+                margin: 3px 0;
+            }
+            .footer a {
+                color: #dc2626;
+                text-decoration: none;
+            }
+            .divider {
+                height: 1px;
+                background: #e9ecef;
+                margin: 20px 0;
+            }
           </style>
       </head>
       <body>

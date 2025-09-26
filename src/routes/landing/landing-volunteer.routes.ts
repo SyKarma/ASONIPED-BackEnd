@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import {getAllLandingVolunteers, getLandingVolunteerById,createLandingVolunteer,updateLandingVolunteer,deleteLandingVolunteer,} from '../../controllers/landing/landing-volunteer.controller';
-import { authenticateToken } from '../../middleware/auth.middleware';
 
 const router = Router();
 
@@ -8,9 +7,9 @@ const router = Router();
 router.get('/', getAllLandingVolunteers);
 router.get('/:id', getLandingVolunteerById);
 
-// Protected endpoints
-router.post('/', authenticateToken, createLandingVolunteer);
-router.put('/:id', authenticateToken, updateLandingVolunteer);
-router.delete('/:id', authenticateToken, deleteLandingVolunteer);
+// Make editable for now (public like hero/about)
+router.post('/', createLandingVolunteer);
+router.put('/:id', updateLandingVolunteer);
+router.delete('/:id', deleteLandingVolunteer);
 
 export default router;

@@ -1,0 +1,23 @@
+CREATE TABLE complete_personal_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  record_id INT NOT NULL,
+  record_number VARCHAR(50),
+  registration_date DATE NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  pcd_name VARCHAR(255),
+  cedula VARCHAR(50) NOT NULL,
+  gender ENUM('male', 'female', 'other') NOT NULL,
+  birth_date DATE NOT NULL,
+  age INT,
+  birth_place VARCHAR(255) NOT NULL,
+  exact_address TEXT NOT NULL,
+  province VARCHAR(100) NOT NULL,
+  canton VARCHAR(100),
+  district VARCHAR(100) NOT NULL,
+  primary_phone VARCHAR(20) NOT NULL,
+  secondary_phone VARCHAR(20),
+  email VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE
+);

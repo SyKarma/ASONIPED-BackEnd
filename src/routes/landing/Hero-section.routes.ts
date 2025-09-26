@@ -8,9 +8,9 @@ const router = Router();
 router.get('/', getAllHeroSections);
 router.get('/:id', getHeroSectionById);
 
-// Protected: Create, update, delete (based on your auth)
-router.post('/', authenticateToken, createHeroSection);
-router.put('/:id', authenticateToken, updateHeroSection);
-router.delete('/:id', authenticateToken, deleteHeroSection);
+// Public: Create, update, delete (landing content should be editable)
+router.post('/', createHeroSection);
+router.put('/:id', updateHeroSection);
+router.delete('/:id', deleteHeroSection);
 
 export default router;

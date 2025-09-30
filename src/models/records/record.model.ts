@@ -10,6 +10,12 @@ export interface Record {
   created_at?: Date;
   updated_at?: Date;
   created_by?: number;
+  admin_created?: boolean;
+  // Handover tracking fields
+  handed_over_to_user?: boolean;
+  handed_over_to?: number;
+  handed_over_at?: Date;
+  handed_over_by?: number;
 }
 
 export interface RecordWithDetails extends Record {
@@ -24,21 +30,65 @@ export interface RecordWithDetails extends Record {
   notes?: any[];
 }
 
+// Utility function to validate record number format
+export const isValidRecordNumber = (recordNumber: string): boolean => {
+  const pattern = /^EXP-\d{4}-\d{4}$/;
+  return pattern.test(recordNumber);
+};
+
+// Utility function to extract year from record number
+export const getYearFromRecordNumber = (recordNumber: string): number | null => {
+  const match = recordNumber.match(/^EXP-(\d{4})-\d{4}$/);
+  return match ? parseInt(match[1], 10) : null;
+};
+
 // Generate unique record number
 export const generateRecordNumber = async (): Promise<string> => {
-  const [rows] = await db.query('SELECT COUNT(*) as count FROM records') as [any[], any];
-  const count = rows[0].count;
   const year = new Date().getFullYear();
-  const paddedCount = String(count + 1).padStart(4, '0');
-  return `EXP-${year}-${paddedCount}`;
+  
+  // Get the highest record number for this year to ensure sequential numbering
+  const [rows] = await db.query(
+    'SELECT record_number FROM records WHERE record_number LIKE ? ORDER BY record_number DESC LIMIT 1',
+    [`EXP-${year}-%`]
+  ) as [any[], any];
+  
+  let nextNumber = 1;
+  
+  if (rows.length > 0) {
+    // Extract the number from the existing record number (format: EXP-YYYY-NNNN)
+    const lastRecordNumber = rows[0].record_number;
+    const numberMatch = lastRecordNumber.match(/EXP-\d{4}-(\d{4})/);
+    
+    if (numberMatch) {
+      nextNumber = parseInt(numberMatch[1], 10) + 1;
+    }
+  }
+  
+  const paddedCount = String(nextNumber).padStart(4, '0');
+  const newRecordNumber = `EXP-${year}-${paddedCount}`;
+  
+  // Double-check that this record number doesn't already exist (safety measure)
+  const [existingRecord] = await db.query(
+    'SELECT id FROM records WHERE record_number = ?',
+    [newRecordNumber]
+  ) as [any[], any];
+  
+  if (existingRecord.length > 0) {
+    // If somehow the record exists, try the next number
+    nextNumber += 1;
+    const paddedCountRetry = String(nextNumber).padStart(4, '0');
+    return `EXP-${year}-${paddedCountRetry}`;
+  }
+  
+  return newRecordNumber;
 };
 
 // Create new record
 export const createRecord = async (record: Record): Promise<number> => {
   const recordNumber = await generateRecordNumber();
   const [result] = await db.query(
-    'INSERT INTO records (record_number, status, phase, created_by) VALUES (?, ?, ?, ?)',
-    [recordNumber, record.status || 'draft', record.phase || 'phase1', record.created_by]
+    'INSERT INTO records (record_number, status, phase, created_by, admin_created) VALUES (?, ?, ?, ?, ?)',
+    [recordNumber, record.status || 'draft', record.phase || 'phase1', record.created_by, record.admin_created || false]
   );
   return (result as any).insertId;
 };
@@ -53,16 +103,18 @@ export const getRecordById = async (id: number): Promise<Record | null> => {
 // Get complete record with all data
 export const getRecordWithDetails = async (id: number): Promise<RecordWithDetails | null> => {
   try {
-    // Get record with personal data using LEFT JOIN
+    // Get record with personal data and creator information using LEFT JOIN
     const [rows] = await db.query(
       `SELECT r.*, 
               pd.id as pd_id, pd.full_name, pd.cedula, pd.pcd_name, pd.gender, 
               pd.birth_date, pd.birth_place, pd.address, pd.province, pd.canton, pd.district, pd.phone,
               pd.mother_name, pd.mother_cedula, pd.mother_phone, pd.father_name, pd.father_cedula, pd.father_phone,
               pd.legal_guardian_name, pd.legal_guardian_cedula, pd.legal_guardian_phone,
-              pd.created_at as pd_created_at, pd.updated_at as pd_updated_at
+              pd.created_at as pd_created_at, pd.updated_at as pd_updated_at,
+              u.username as creator_username, u.full_name as creator_full_name
        FROM records r 
        LEFT JOIN personal_data pd ON r.id = pd.record_id 
+       LEFT JOIN users u ON r.created_by = u.id
        WHERE r.id = ?`,
       [id]
     ) as [any[], any];
@@ -218,6 +270,10 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       created_at: row.created_at,
       updated_at: row.updated_at,
       created_by: row.created_by,
+      admin_created: row.admin_created,
+      // Creator attribution information
+      creator_username: row.creator_username,
+      creator_full_name: row.creator_full_name,
       personal_data: personalData,
       family_information: familyInformation,
       complete_personal_data: completePersonalData,
@@ -244,7 +300,8 @@ export const getRecords = async (
   limit = 10,
   status?: string,
   phase?: string,
-  search?: string
+  search?: string,
+  creator?: string
 ): Promise<{ records: Record[]; total: number }> => {
   const offset = (page - 1) * limit;
   let where = '';
@@ -266,6 +323,15 @@ export const getRecords = async (
     where += '(record_number LIKE ? OR id IN (SELECT record_id FROM personal_data WHERE full_name LIKE ? OR cedula LIKE ?))';
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
+  
+  if (creator) {
+    if (where) where += ' AND ';
+    if (creator === 'admin') {
+      where += 'admin_created = true';
+    } else if (creator === 'user') {
+      where += 'admin_created = false OR admin_created IS NULL';
+    }
+  }
 
   const whereClause = where ? `WHERE ${where}` : '';
   
@@ -274,9 +340,14 @@ export const getRecords = async (
             pd.id as pd_id, pd.full_name, pd.cedula, pd.pcd_name, pd.gender, 
             pd.birth_date, pd.birth_place, pd.address, pd.province, pd.district,
             pd.mother_name, pd.mother_cedula, pd.father_name, pd.father_cedula,
-            pd.created_at as pd_created_at, pd.updated_at as pd_updated_at
+            pd.created_at as pd_created_at, pd.updated_at as pd_updated_at,
+            cpd.full_name as cpd_full_name, cpd.cedula as cpd_cedula, cpd.exact_address as cpd_exact_address,
+            cpd.primary_phone as cpd_primary_phone, cpd.email as cpd_email,
+            u.username as creator_username, u.full_name as creator_full_name
      FROM records r 
      LEFT JOIN personal_data pd ON r.id = pd.record_id 
+     LEFT JOIN complete_personal_data cpd ON r.id = cpd.record_id
+     LEFT JOIN users u ON r.created_by = u.id
      ${whereClause} 
      ORDER BY r.created_at DESC 
      LIMIT ? OFFSET ?`,
@@ -292,7 +363,11 @@ export const getRecords = async (
       phase: row.phase,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      created_by: row.created_by
+      created_by: row.created_by,
+      admin_created: row.admin_created,
+      // Creator attribution information
+      creator_username: row.creator_username,
+      creator_full_name: row.creator_full_name
     };
 
     // If personal data exists, create personal_data object
@@ -316,6 +391,24 @@ export const getRecords = async (
         created_at: row.pd_created_at,
         updated_at: row.pd_updated_at
       };
+    }
+
+    // Project minimal complete_personal_data fields for admin-created records
+    if (row.cpd_full_name || row.cpd_cedula || row.cpd_primary_phone || row.cpd_exact_address || row.cpd_email) {
+      record.complete_personal_data = {
+        registration_date: null,
+        full_name: row.cpd_full_name || null,
+        cedula: row.cpd_cedula || null,
+        gender: null,
+        birth_date: null,
+        birth_place: null,
+        exact_address: row.cpd_exact_address || null,
+        province: null,
+        district: null,
+        primary_phone: row.cpd_primary_phone || null,
+        secondary_phone: null,
+        email: row.cpd_email || null
+      } as any;
     }
 
     return record as Record;

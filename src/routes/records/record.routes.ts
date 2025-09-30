@@ -1,12 +1,17 @@
 import express from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
-import { uploadRecordDocuments, handleUploadError } from '../../middleware/upload.middleware';
+import { uploadRecordDocuments, validateUpload, handleUploadError } from '../../middleware/upload.middleware';
 import * as RecordController from '../../controllers/records/record.controller';
 
 const router = express.Router();
 
 // Public routes (for registration form)
 router.post('/', authenticateToken, RecordController.createRecord); // Create record (requires authentication)
+
+// Admin routes
+router.post('/admin-direct', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.createAdminDirectRecord); // Admin direct record creation
+router.put('/:id/admin-edit', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.updateRecordAdmin); // Admin record edit with override
+router.put('/:id/handover', authenticateToken, RecordController.handoverRecordToUser); // Hand over admin-created record to user
 
 // Test and debug routes (without authentication)
 router.get('/test', (req: any, res: any) => res.json({ message: 'Records routes are working!' })); // Test route

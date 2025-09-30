@@ -33,6 +33,7 @@ import heroSectionRoutes from './routes/landing/Hero-section.routes';
 import aboutSectionRoutes from './routes/landing/About-section.routes';
 import uploadRoutes from './routes/landing/upload.routes';
 import landingVolunteerRoutes from './routes/landing/landing-volunteer.routes';
+import googleDriveRoutes from './routes/admin/googleDrive.routes';
 
 // Load environment variables
 dotenv.config();
@@ -140,6 +141,7 @@ app.use('/api/hero-section', heroSectionRoutes);
 app.use('/api/about-section', aboutSectionRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/landing-volunteer', landingVolunteerRoutes);
+app.use('/admin/google-drive', googleDriveRoutes);
 
 // Temporarily disabled - uncomment when needed
 // app.use('/records', recordDocumentRoutes);

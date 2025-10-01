@@ -1,32 +1,22 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { getAllWorkshops, getWorkshopById, createWorkshop, updateWorkshop, deleteWorkshop } from '../../controllers/workshop/workshop.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 
 const router = Router();
 
 // Get all workshops (public)
-router.get('/', async (req: Request, res: Response) => {
-    await getAllWorkshops(req, res);
-});
+router.get('/', getAllWorkshops);
 
 // Get a single workshop by ID (public)
-router.get('/:id', async (req: Request, res: Response) => {
-    await getWorkshopById(req, res);
-});
+router.get('/:id', getWorkshopById);
 
 // Create a new workshop (protected)
-router.post('/', authenticateToken, async (req: Request, res: Response) => {
-    await createWorkshop(req, res);
-});
+router.post('/', authenticateToken, createWorkshop);
 
 // Update a workshop (protected)
-router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
-    await updateWorkshop(req, res);
-});
+router.put('/:id', authenticateToken, updateWorkshop);
 
 // Delete a workshop (protected)
-router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
-    await deleteWorkshop(req, res);
-});
+router.delete('/:id', authenticateToken, deleteWorkshop);
 
-export default router;
+export default router;

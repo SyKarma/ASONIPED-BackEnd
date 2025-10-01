@@ -12,4 +12,4 @@ router.post('/', createLandingVolunteer);
 router.put('/:id', updateLandingVolunteer);
 router.delete('/:id', deleteLandingVolunteer);
 
-export default router;
+export default router; 

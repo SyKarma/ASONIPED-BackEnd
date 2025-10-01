@@ -31,6 +31,8 @@ import ticketMessageRoutes from './routes/donations/ticket_message.routes';
 import anonymousTicketRoutes from './routes/donations/anonymous_ticket.routes';
 import heroSectionRoutes from './routes/landing/Hero-section.routes';
 import aboutSectionRoutes from './routes/landing/About-section.routes';
+import LandingDonacionesComponent  from './routes/landing/landing-donaciones-component.routes';
+import LandingDonacionesCard  from './routes/landing/landing-donaciones-card.routes';
 import uploadRoutes from './routes/landing/upload.routes';
 import landingVolunteerRoutes from './routes/landing/landing-volunteer.routes';
 
@@ -139,6 +141,9 @@ app.use('/anonymous-tickets', anonymousTicketRoutes);
 app.use('/api/hero-section', heroSectionRoutes);
 app.use('/api/about-section', aboutSectionRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/landing-donaciones-card', LandingDonacionesCard);
+app.use('/uploads', express.static('uploads'));
+app.use('/api/landing-donaciones-component', LandingDonacionesComponent);
 app.use('/api/landing-volunteer', landingVolunteerRoutes);
 
 // Temporarily disabled - uncomment when needed

@@ -1,12 +1,5 @@
 import { Router } from 'express';
-import {
-  getAllEnrollments,
-  getEnrollmentsByWorkshop,
-  getEnrollmentById,
-  createEnrollment,
-  updateEnrollment,
-  deleteEnrollment
-} from '../../controllers/workshop/enrollment.controller';
+import { getAllEnrollments, getEnrollmentsByWorkshop, getEnrollmentById, createEnrollment, updateEnrollment, deleteEnrollment} from '../../controllers/workshop/enrollment.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 
 const router = Router();

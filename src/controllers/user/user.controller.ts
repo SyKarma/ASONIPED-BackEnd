@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import * as UserModel from '../../models/user/user.model';
 import { emailService } from '../../services/email.service';
+import { db } from '../../db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
@@ -353,6 +354,35 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
   } catch (err) {
     console.error('Error getting all users:', err);
     res.status(500).json({ error: 'Error getting users' });
+  }
+};
+
+// Get users eligible for handover (non-admins without any record)
+export const getEligibleUsersForHandover = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const [rows] = await db.query(
+      `SELECT u.id, u.username, u.full_name, u.email
+       FROM users u
+       WHERE u.status = 'active'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM user_role_assignments ura
+           JOIN user_roles ur ON ur.id = ura.role_id
+           WHERE ura.user_id = u.id AND ur.name = 'admin'
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM records r
+           WHERE r.created_by = u.id
+              OR (r.handed_over_to_user = TRUE AND r.handed_over_to = u.id)
+         )
+       ORDER BY (u.full_name IS NULL), u.full_name, u.username`
+    ) as [any[], any];
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error getting eligible users for handover:', err);
+    res.status(500).json({ error: 'Error getting eligible users' });
   }
 };
 

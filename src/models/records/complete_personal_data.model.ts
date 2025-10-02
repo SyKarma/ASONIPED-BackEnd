@@ -67,7 +67,7 @@ export const updateCompletePersonalData = async (recordId: number, data: Partial
     const values = [];
     
     Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined && key !== 'id' && key !== 'record_id') {
+      if (value !== undefined && key !== 'id' && key !== 'record_id' && key !== 'created_at' && key !== 'updated_at') {
         fields.push(`${key} = ?`);
         values.push(value);
       }
@@ -75,6 +75,8 @@ export const updateCompletePersonalData = async (recordId: number, data: Partial
     
     if (fields.length === 0) return;
     
+    // Add updated_at field
+    fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(recordId);
     
     const sql = `UPDATE complete_personal_data SET ${fields.join(', ')} WHERE record_id = ?`;

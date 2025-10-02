@@ -3,6 +3,7 @@ import * as RecordModel from '../../models/records/record.model';
 import * as PersonalDataModel from '../../models/records/personal_data.model';
 import { createOrUpdateCompletePersonalData } from '../../models/records/complete_personal_data.model';
 import { db } from '../../db';
+import jwt from 'jsonwebtoken';
 import googleDriveService from '../../services/googleDriveOAuth.service';
 
 // Create new record
@@ -107,6 +108,22 @@ export const createAdminDirectRecord = async (req: Request, res: Response): Prom
       console.log('Record ID:', recordId);
       console.log('Disability Information:', JSON.stringify(disability_information, null, 2));
       await RecordModel.createOrUpdateDisabilityData(recordId, disability_information);
+      
+      // Also create enrollment_form entry with medical information
+      if (disability_information.medical_additional) {
+        console.log('=== ADMIN: CREATING ENROLLMENT FORM WITH MEDICAL DATA ===');
+        const enrollmentData = {
+          enrollment_date: new Date().toISOString().split('T')[0], // Today's date
+          applicant_full_name: complete_personal_data?.full_name || '',
+          applicant_cedula: complete_personal_data?.cedula || '',
+          blood_type: disability_information.medical_additional.blood_type || null,
+          medical_conditions: disability_information.medical_additional.diseases || null,
+          // Add other fields as needed
+        };
+        
+        console.log('Enrollment Data:', JSON.stringify(enrollmentData, null, 2));
+        await RecordModel.createOrUpdateEnrollmentForm(recordId, enrollmentData);
+      }
     }
     
     // Create/update documentation requirements
@@ -267,7 +284,8 @@ export const createAdminDirectRecord = async (req: Request, res: Response): Prom
           console.log('File uploaded to Google Drive successfully:', driveResult);
         } catch (driveError) {
           console.error('Error uploading to Google Drive:', driveError);
-          console.error('Drive Error Details:', driveError.message);
+          const detail = driveError instanceof Error ? driveError.message : String(driveError);
+          console.error('Drive Error Details:', detail);
         }
         
         // Create document record
@@ -353,6 +371,8 @@ export const getRecords = async (req: Request, res: Response): Promise<void> => 
     const search = req.query.search as string | undefined;
     const creator = req.query.creator as string | undefined;
     
+    console.log('🔍 Controller - getRecords called with:', { page, limit, status, phase, search, creator });
+    
     const { records, total } = await RecordModel.getRecords(page, limit, status, phase, search, creator);
     
     res.json({
@@ -365,6 +385,38 @@ export const getRecords = async (req: Request, res: Response): Promise<void> => 
   } catch (err) {
     console.error('Error getting records:', err);
     res.status(500).json({ error: 'Error getting records' });
+  }
+};
+
+// Get geographic analytics data only
+export const getGeographicAnalytics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const geographicData = await RecordModel.getGeographicAnalytics();
+    res.json(geographicData);
+  } catch (error) {
+    console.error('Error getting geographic analytics:', error);
+    res.status(500).json({ error: 'Error getting geographic analytics' });
+  }
+};
+
+// Get disability analytics data only
+export const getDisabilityAnalytics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const disabilityData = await RecordModel.getDisabilityAnalytics();
+    res.json(disabilityData);
+  } catch (error) {
+    console.error('Error getting disability analytics:', error);
+    res.status(500).json({ error: 'Error getting disability analytics' });
+  }
+};
+
+export const getFamilyAnalytics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await RecordModel.getFamilyAnalytics();
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting family analytics:', error);
+    res.status(500).json({ error: 'Error getting family analytics' });
   }
 };
 
@@ -769,6 +821,76 @@ export const getMyRecord = async (req: Request, res: Response): Promise<void> =>
   } catch (err) {
     console.error('Error getting user record:', err);
     res.status(500).json({ error: 'Error getting user record' });
+  }
+};
+
+// Create a signed QR token for Attendance (owner or admin)
+export const createIdQr = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const recordId = parseInt(req.params.id);
+    const requesterId = (req as any).user?.userId || (req as any).user?.id;
+    const roles: string[] = (req as any).user?.roles || [];
+
+    if (!requesterId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Load full record with joined details to access names safely
+    const record = await RecordModel.getRecordWithDetails(recordId);
+    if (!record) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+
+    const isOwner = record.created_by === requesterId || (record.handed_over_to_user && record.handed_over_to === requesterId);
+    const isAdmin = roles.includes('admin');
+    if (!isOwner && !isAdmin) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const fullName = record.complete_personal_data?.full_name || record.personal_data?.full_name || undefined;
+    const userId = isOwner ? requesterId : undefined;
+
+    const secret = process.env.JWT_SECRET || 'your_jwt_secret_key';
+    const token = jwt.sign(
+      {
+        type: 'attendance',
+        record_id: recordId,
+        user_id: userId,
+        full_name: fullName,
+      },
+      secret,
+      { expiresIn: '8h' }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    console.error('Error creating ID QR:', err);
+    res.status(500).json({ error: 'Error creating QR token' });
+  }
+};
+
+// Verify a scanned QR token and stub attendance registration
+export const scanAttendance = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.body || {};
+    if (!token) {
+      res.status(400).json({ error: 'Token is required' });
+      return;
+    }
+    const secret = process.env.JWT_SECRET || 'your_jwt_secret_key';
+    const payload = jwt.verify(token, secret) as any;
+    if (payload?.type !== 'attendance' || !payload?.record_id) {
+      res.status(400).json({ error: 'Invalid token' });
+      return;
+    }
+    // Stub: persist attendance later
+    res.json({ status: 'ok', record_id: payload.record_id, user_id: payload.user_id, full_name: payload.full_name, verified_at: new Date().toISOString() });
+  } catch (err) {
+    console.error('Error scanning attendance:', err);
+    res.status(400).json({ error: 'Invalid or expired token' });
   }
 };
 
@@ -1300,22 +1422,50 @@ export const updateRecordAdmin = async (req: Request, res: Response): Promise<vo
 
     // Update complete personal data
     if (complete_personal_data) {
-      await createOrUpdateCompletePersonalData(recordId, complete_personal_data);
+      try {
+        console.log('Updating complete personal data for record:', recordId);
+        await createOrUpdateCompletePersonalData(recordId, complete_personal_data);
+        console.log('Complete personal data updated successfully');
+      } catch (error) {
+        console.error('Error updating complete personal data:', error);
+        throw error;
+      }
     }
 
     // Update family information
     if (family_information) {
-      await RecordModel.createOrUpdateFamilyInformation(recordId, family_information);
+      try {
+        console.log('Updating family information for record:', recordId);
+        await RecordModel.createOrUpdateFamilyInformation(recordId, family_information);
+        console.log('Family information updated successfully');
+      } catch (error) {
+        console.error('Error updating family information:', error);
+        throw error;
+      }
     }
 
     // Update disability information
     if (disability_information) {
-      await RecordModel.createOrUpdateDisabilityData(recordId, disability_information);
+      try {
+        console.log('Updating disability information for record:', recordId);
+        await RecordModel.createOrUpdateDisabilityData(recordId, disability_information);
+        console.log('Disability information updated successfully');
+      } catch (error) {
+        console.error('Error updating disability information:', error);
+        throw error;
+      }
     }
 
     // Update socioeconomic information
     if (socioeconomic_information) {
-      await RecordModel.createOrUpdateSocioeconomicData(recordId, socioeconomic_information);
+      try {
+        console.log('Updating socioeconomic information for record:', recordId);
+        await RecordModel.createOrUpdateSocioeconomicData(recordId, socioeconomic_information);
+        console.log('Socioeconomic information updated successfully');
+      } catch (error) {
+        console.error('Error updating socioeconomic information:', error);
+        throw error;
+      }
     }
 
     // Handle documentation requirements and file uploads
@@ -1434,9 +1584,13 @@ export const handoverRecordToUser = async (req: Request, res: Response): Promise
       return;
     }
 
+    // If already handed over, allow reassignment only if to a different user
     if (existingRecord.handed_over_to_user) {
-      res.status(400).json({ error: 'Record has already been handed over to a user' });
-      return;
+      if (existingRecord.handed_over_to === userId) {
+        res.status(400).json({ error: 'Record is already handed over to this user' });
+        return;
+      }
+      // else: allow reassignment below after validations
     }
 
     // Check if user exists
@@ -1452,12 +1606,37 @@ export const handoverRecordToUser = async (req: Request, res: Response): Promise
 
     const user = userRows[0];
 
-    // Update record with handover information
+    // Ensure target user is not admin
+    const [roleRows] = await db.query(
+      `SELECT 1 FROM user_role_assignments ura
+       JOIN user_roles ur ON ur.id = ura.role_id
+       WHERE ura.user_id = ? AND ur.name = 'admin' LIMIT 1`,
+      [userId]
+    ) as [any[], any];
+    if (roleRows.length > 0) {
+      res.status(400).json({ error: 'Cannot hand over records to admin users' });
+      return;
+    }
+
+    // Ensure target user does not already have another record
+    const [recordCountRows] = await db.query(
+      `SELECT COUNT(*) AS cnt FROM records 
+       WHERE (created_by = ? OR (handed_over_to_user = TRUE AND handed_over_to = ?))
+         AND id <> ?`,
+      [userId, userId, recordId]
+    ) as [any[], any];
+    const hasOtherRecord = (recordCountRows[0]?.cnt || 0) > 0;
+    if (hasOtherRecord) {
+      res.status(400).json({ error: 'User already has a record' });
+      return;
+    }
+
+    // Update record with handover or reassignment information
     await db.query(
       `UPDATE records 
-       SET handed_over_to_user = true, 
-           handed_over_to = ?, 
-           handed_over_at = NOW(), 
+       SET handed_over_to_user = TRUE,
+           handed_over_to = ?,
+           handed_over_at = NOW(),
            handed_over_by = ?
        WHERE id = ?`,
       [userId, adminId, recordId]
@@ -1481,8 +1660,9 @@ export const handoverRecordToUser = async (req: Request, res: Response): Promise
         minute: '2-digit'
       });
       
+      const actionVerb = existingRecord.handed_over_to_user ? 'reasignado' : 'entregado';
       await RecordModel.addNote(recordId, {
-        note: `Expediente entregado al usuario ${user.full_name || user.username} por administrador: ${adminName} (${currentDate})`,
+        note: `Expediente ${actionVerb} al usuario ${user.full_name || user.username} por administrador: ${adminName} (${currentDate})`,
         type: 'milestone',
         created_by: adminId
       });
@@ -1493,7 +1673,7 @@ export const handoverRecordToUser = async (req: Request, res: Response): Promise
     }
 
     res.status(200).json({ 
-      message: 'Record successfully handed over to user',
+      message: existingRecord.handed_over_to_user ? 'Record successfully reassigned to user' : 'Record successfully handed over to user',
       record_id: recordId,
       user: {
         id: user.id,

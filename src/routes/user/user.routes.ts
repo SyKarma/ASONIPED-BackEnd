@@ -23,6 +23,7 @@ router.post('/change-password', authenticateToken, UserController.changePassword
 
 // Administration routes (require admin role)
 router.get('/', authenticateToken, UserController.getAllUsers);
+router.get('/eligible-for-handover', authenticateToken, UserController.getEligibleUsersForHandover);
 router.post('/', authenticateToken, UserController.createUser);
 router.put('/:id', authenticateToken, UserController.updateUser);
 router.delete('/:id', authenticateToken, UserController.deleteUser);

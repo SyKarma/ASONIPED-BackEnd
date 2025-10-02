@@ -53,8 +53,24 @@ class GoogleDriveTokenService {
 
   async loadTokenFromDatabase() {
     try {
+      // Prefer the most recent token that has a non-null refresh_token
       const [rows] = await this.db.execute(
-        'SELECT access_token, refresh_token, expiry_date FROM google_drive_tokens ORDER BY created_at DESC LIMIT 1'
+        `(
+          SELECT access_token, refresh_token, expiry_date
+          FROM google_drive_tokens
+          WHERE refresh_token IS NOT NULL
+          ORDER BY created_at DESC
+          LIMIT 1
+        )
+        UNION ALL
+        (
+          SELECT access_token, refresh_token, expiry_date
+          FROM google_drive_tokens
+          WHERE refresh_token IS NULL
+          ORDER BY created_at DESC
+          LIMIT 1
+        )
+        LIMIT 1`
       );
 
       if (rows.length > 0) {
@@ -65,13 +81,33 @@ class GoogleDriveTokenService {
           expiry_date: token.expiry_date
         };
 
+        // Backfill refresh_token if missing before setting credentials
+        if (!tokenData.refresh_token) {
+          try {
+            const [rtRows] = await this.db.execute(
+              `SELECT refresh_token FROM google_drive_tokens
+               WHERE refresh_token IS NOT NULL
+               ORDER BY created_at DESC
+               LIMIT 1`
+            );
+            if (rtRows && rtRows.length > 0) {
+              tokenData.refresh_token = rtRows[0].refresh_token;
+            }
+          } catch (_e) {}
+        }
+
         this.oauth2Client.setCredentials(tokenData);
         console.log('✅ Google Drive token loaded from database');
         
         // Check if token needs refresh
         if (this.isTokenExpired(tokenData)) {
           console.log('🔄 Token expired, refreshing...');
-          await this.refreshToken();
+          // Only attempt refresh if we have a refresh_token after backfill
+          if (!this.oauth2Client.credentials.refresh_token) {
+            console.warn('⚠️ No refresh token available; skipping refresh and keeping existing access token');
+          } else {
+            await this.refreshToken();
+          }
         }
       } else {
         console.log('⚠️ No token found in database. Manual authorization required.');
@@ -87,7 +123,7 @@ class GoogleDriveTokenService {
     try {
       // Ensure all token values are properly defined
       const accessToken = tokenData.access_token || null;
-      const refreshToken = tokenData.refresh_token || null;
+      let refreshToken = tokenData.refresh_token || null;
       
       // Convert expiry_date from Unix timestamp to MySQL datetime format
       let expiryDate = null;
@@ -100,17 +136,61 @@ class GoogleDriveTokenService {
         }
       }
       
+      // If Google did not return a refresh_token, reuse the latest non-null one from DB
+      if (!refreshToken) {
+        try {
+          const [rtRows] = await this.db.execute(
+            `SELECT refresh_token FROM google_drive_tokens
+             WHERE refresh_token IS NOT NULL
+             ORDER BY created_at DESC
+             LIMIT 1`
+          );
+          if (rtRows && rtRows.length > 0) {
+            refreshToken = rtRows[0].refresh_token;
+          }
+        } catch (_e) {
+          // ignore, fallback to null
+        }
+      }
+
       console.log('Token data to save:', {
         accessToken: accessToken ? 'present' : 'missing',
         refreshToken: refreshToken ? 'present' : 'missing',
         expiryDate: expiryDate || 'missing'
       });
-      
-      await this.db.execute(
-        'INSERT INTO google_drive_tokens (access_token, refresh_token, expiry_date, created_at) VALUES (?, ?, ?, NOW())',
-        [accessToken, refreshToken, expiryDate]
-      );
-      console.log('✅ Token saved to database');
+
+      if (refreshToken) {
+        // Normal path: insert a new snapshot including refresh token
+        await this.db.execute(
+          'INSERT INTO google_drive_tokens (access_token, refresh_token, expiry_date, created_at) VALUES (?, ?, ?, NOW())',
+          [accessToken, refreshToken, expiryDate]
+        );
+        console.log('✅ Token with refresh_token saved');
+      } else {
+        // No refresh_token returned: update the most recent row that has a refresh_token
+        const [existingRtRows] = await this.db.execute(
+          `SELECT id FROM google_drive_tokens
+           WHERE refresh_token IS NOT NULL
+           ORDER BY created_at DESC
+           LIMIT 1`
+        );
+
+        if (existingRtRows && existingRtRows.length > 0) {
+          const id = existingRtRows[0].id;
+          await this.db.execute(
+            'UPDATE google_drive_tokens SET access_token = ?, expiry_date = ?, created_at = NOW() WHERE id = ?',
+            [accessToken, expiryDate, id]
+          );
+          console.log('✅ Updated existing token row (kept refresh_token)');
+        } else {
+          // No prior refresh token in DB; insert anyway (first run scenario)
+          await this.db.execute(
+            'INSERT INTO google_drive_tokens (access_token, refresh_token, expiry_date, created_at) VALUES (?, ?, ?, NOW())',
+            [accessToken, null, expiryDate]
+          );
+          console.log('✅ Token saved without refresh_token (no prior token to reuse)');
+        }
+      }
     } catch (error) {
       console.error('Error saving token to database:', error);
       throw error;
@@ -140,6 +220,10 @@ class GoogleDriveTokenService {
     try {
       console.log('🔄 Refreshing Google Drive token...');
       
+      if (!this.oauth2Client.credentials || !this.oauth2Client.credentials.refresh_token) {
+        throw new Error('No refresh token is set.');
+      }
+
       const { credentials } = await this.oauth2Client.refreshAccessToken();
       
       // Update OAuth2 client with new credentials
@@ -154,7 +238,7 @@ class GoogleDriveTokenService {
       console.error('❌ Error refreshing token:', error);
       
       // If refresh fails, try to get a new token using the refresh token
-      if (error.message.includes('invalid_grant')) {
+      if (typeof error.message === 'string' && error.message.includes('invalid_grant')) {
         console.log('🔄 Refresh token expired, attempting to get new token...');
         return await this.getNewToken();
       }
@@ -195,6 +279,25 @@ class GoogleDriveTokenService {
       }
 
       if (this.isTokenExpired(this.oauth2Client.credentials)) {
+        // Ensure we have a refresh_token before attempting refresh
+        if (!this.oauth2Client.credentials.refresh_token) {
+          // Try to backfill refresh_token from DB
+          try {
+            const [rtRows] = await this.db.execute(
+              `SELECT refresh_token FROM google_drive_tokens
+               WHERE refresh_token IS NOT NULL
+               ORDER BY created_at DESC
+               LIMIT 1`
+            );
+            if (rtRows && rtRows.length > 0) {
+              this.oauth2Client.setCredentials({
+                ...this.oauth2Client.credentials,
+                refresh_token: rtRows[0].refresh_token
+              });
+            }
+          } catch (_e) {}
+        }
+
         await this.refreshToken();
       }
 

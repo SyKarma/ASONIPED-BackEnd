@@ -1,12 +1,17 @@
 import express from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
-import { uploadRecordDocuments, handleUploadError } from '../../middleware/upload.middleware';
+import { uploadRecordDocuments, validateUpload, handleUploadError } from '../../middleware/upload.middleware';
 import * as RecordController from '../../controllers/records/record.controller';
 
 const router = express.Router();
 
 // Public routes (for registration form)
 router.post('/', authenticateToken, RecordController.createRecord); // Create record (requires authentication)
+
+// Admin routes
+router.post('/admin-direct', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.createAdminDirectRecord); // Admin direct record creation
+router.put('/:id/admin-edit', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.updateRecordAdmin); // Admin record edit with override
+router.put('/:id/handover', authenticateToken, RecordController.handoverRecordToUser); // Hand over admin-created record to user
 
 // Test and debug routes (without authentication)
 router.get('/test', (req: any, res: any) => res.json({ message: 'Records routes are working!' })); // Test route
@@ -16,7 +21,12 @@ router.get('/debug/database-public', RecordController.debugDatabase); // Tempora
 // Protected specific routes (must go BEFORE routes with parameters)
 router.get('/my-record', authenticateToken, RecordController.getMyRecord); // Get user's record
 router.get('/stats', authenticateToken, RecordController.getRecordStats); // Statistics
+router.get('/geographic-analytics', authenticateToken, RecordController.getGeographicAnalytics); // Geographic analytics only
+router.get('/disability-analytics', authenticateToken, RecordController.getDisabilityAnalytics); // Disability analytics only
+router.get('/family-analytics', authenticateToken, RecordController.getFamilyAnalytics); // Family analytics only
 router.get('/debug/database', authenticateToken, RecordController.debugDatabase); // Temporary debug
+router.post('/:id/id-qr', authenticateToken, RecordController.createIdQr); // Create signed QR for ID (owner/admin)
+router.post('/attendance/scan', authenticateToken, RecordController.scanAttendance); // Verify QR and register attendance (stub)
 
 // Routes with specific parameters
 router.get('/search/cedula/:cedula', authenticateToken, RecordController.searchRecordByCedula); // Search by cedula

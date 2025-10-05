@@ -36,8 +36,8 @@ CREATE TABLE landing_donaciones_component (
 CREATE TABLE landing_donaciones_card (
   id INT AUTO_INCREMENT PRIMARY KEY,
   titulo_card VARCHAR(100) NOT NULL,  
-  descripcion_card VARCHAR(100) NOT NULL,    
-  URL_imagen NVARCHAR(255) NOT NULL,
+  descripcion_card VARCHAR(250) NOT NULL,    
+  URL_imagen NVARCHAR(255) NULL,
   texto_boton VARCHAR(100) NOT NULL,
   color_boton VARCHAR(20) NOT NULL|
   

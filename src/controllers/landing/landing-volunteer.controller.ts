@@ -37,8 +37,8 @@ export const createLandingVolunteer = async (req: Request, res: Response) => {
   if (!titulo || typeof titulo !== "string" || titulo.length < 3 || titulo.length > 255) {
     return res.status(400).json({ error: "titulo es requerido y debe tener entre 3 y 255 caracteres" });
   }
-  if (!descripcion || typeof descripcion !== "string" || descripcion.length > 255) {
-    return res.status(400).json({ error: "descripcion es requerida y máximo 255 caracteres" });
+  if (!descripcion || typeof descripcion !== "string" || descripcion.length > 500) {
+    return res.status(400).json({ error: "descripcion es requerida y máximo 500 caracteres" });
   }
   if (!URL_imagen || typeof URL_imagen !== "string" || URL_imagen.length > 255 || !isValidUrl(URL_imagen)) {
     return res.status(400).json({ error: "URL_imagen es requerida, válida y máximo 255 caracteres" });

@@ -40,8 +40,8 @@ export const createLandingDonacionesCard = async (req: Request, res: Response) =
   if (!titulo_card || typeof titulo_card !== "string" || titulo_card.length < 3 || titulo_card.length > 100) {
     return res.status(400).json({ error: "titulo_card es requerido y debe tener entre 3 y 100 caracteres" });
   }
-  if (!descripcion_card || typeof descripcion_card !== "string" || descripcion_card.length > 100) {
-    return res.status(400).json({ error: "descripcion_card es requerida y máximo 100 caracteres" });
+  if (!descripcion_card || typeof descripcion_card !== "string" || descripcion_card.length < 1 || descripcion_card.length > 250) {
+    return res.status(400).json({ error: "descripcion_card es requerida y debe tener entre 1 y 250 caracteres" });
   }
   if (!texto_boton || typeof texto_boton !== "string" || texto_boton.length < 1 || texto_boton.length > 100) {
     return res.status(400).json({ error: "texto_boton es requerido y debe tener entre 1 y 100 caracteres" });
@@ -51,6 +51,7 @@ export const createLandingDonacionesCard = async (req: Request, res: Response) =
   }
 
   try {
+    console.log('Creating card with data:', { titulo_card, descripcion_card, URL_imagen, texto_boton, color_boton });
     const id = await LandingDonacionesCardModel.create({
       titulo_card,
       descripcion_card,
@@ -58,9 +59,11 @@ export const createLandingDonacionesCard = async (req: Request, res: Response) =
       texto_boton,
       color_boton
     });
+    console.log('Card created successfully with ID:', id);
     res.status(201).json({ message: 'Card created', id, URL_imagen });
   } catch (err) {
-    res.status(500).json({ error: 'Error creating card' });
+    console.error('Error creating card:', err);
+    res.status(500).json({ error: 'Error creating card', details: err instanceof Error ? err.message : 'Unknown error' });
   }
 };
 
@@ -78,8 +81,8 @@ export const updateLandingDonacionesCard = async (req: Request, res: Response) =
   if (!titulo_card || typeof titulo_card !== "string" || titulo_card.length < 3 || titulo_card.length > 100) {
     return res.status(400).json({ error: "titulo_card es requerido y debe tener entre 3 y 100 caracteres" });
   }
-  if (!descripcion_card || typeof descripcion_card !== "string" || descripcion_card.length > 100) {
-    return res.status(400).json({ error: "descripcion_card es requerida y máximo 100 caracteres" });
+  if (!descripcion_card || typeof descripcion_card !== "string" || descripcion_card.length < 1 || descripcion_card.length > 250) {
+    return res.status(400).json({ error: "descripcion_card es requerida y debe tener entre 1 y 250 caracteres" });
   }
   if (!texto_boton || typeof texto_boton !== "string" || texto_boton.length < 1 || texto_boton.length > 100) {
     return res.status(400).json({ error: "texto_boton es requerido y debe tener entre 1 y 100 caracteres" });

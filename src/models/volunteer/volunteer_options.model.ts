@@ -189,7 +189,8 @@ export const getAllProposals = async (): Promise<VolunteerOptionProposal[]> => {
     SELECT 
       vop.*,
       u.full_name,
-      u.email
+      u.email,
+      u.phone
     FROM volunteer_option_proposals vop
     LEFT JOIN users u ON vop.user_id = u.id
     ORDER BY vop.created_at DESC

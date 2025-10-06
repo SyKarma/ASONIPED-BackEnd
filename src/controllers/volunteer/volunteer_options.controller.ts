@@ -8,7 +8,29 @@ import { AuthRequest } from '../../middleware/auth.middleware';
 // Get all volunteer options
 export const getVolunteerOptions = async (req: Request, res: Response): Promise<void> => {
   try {
-    const cacheKey = volunteerCache.getVolunteerOptionsKey();
+    // Try to extract userId from request (optional authentication)
+    let userId: number | undefined;
+    
+    // Check if user is authenticated
+    if ((req as any).user?.userId) {
+      userId = (req as any).user.userId;
+    } else {
+      // Try to authenticate from token in headers
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const jwt = require('jsonwebtoken');
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+          userId = decoded.userId;
+        } catch (tokenError) {
+          // Token is invalid, continue without userId
+          userId = undefined;
+        }
+      }
+    }
+    
+    const cacheKey = volunteerCache.getVolunteerOptionsKey(userId);
     
     // Try cache first
     const cachedOptions = volunteerCache.get(cacheKey);
@@ -17,7 +39,7 @@ export const getVolunteerOptions = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const options = await VolunteerOptionModel.getAllVolunteerOptions();
+    const options = await VolunteerOptionModel.getAllVolunteerOptions(userId);
     
     // Cache for 15 minutes (options don't change often)
     volunteerCache.set(cacheKey, options, 900);
@@ -31,7 +53,15 @@ export const getVolunteerOptions = async (req: Request, res: Response): Promise<
 // Add a new volunteer option
 export const addVolunteerOption = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, description, date, location, skills, tools } = req.body as any;
+    console.log('Creating volunteer option with data:', req.body);
+    const { title, description, date, location, skills, tools, hour, spots } = req.body as any;
+
+    // Validate required fields
+    if (!title || !description || !date || !location || !hour || !spots) {
+      console.error('Missing required fields:', { title, description, date, location, hour, spots });
+      res.status(400).json({ error: 'Missing required fields: title, description, date, location, hour, spots' });
+      return;
+    }
 
     // Save image if provided
     let imageUrl: string | undefined;
@@ -45,7 +75,7 @@ export const addVolunteerOption = async (req: Request, res: Response): Promise<v
       imageUrl = `/uploads/volunteer-options/${filename}`;
     }
 
-    await VolunteerOptionModel.createVolunteerOption({
+    const volunteerOptionData = {
       title,
       description,
       imageUrl: imageUrl || '',
@@ -53,14 +83,25 @@ export const addVolunteerOption = async (req: Request, res: Response): Promise<v
       location,
       skills,
       tools,
-    } as any);
+      hour,
+      spots: parseInt(spots) || 1,
+    };
+
+    console.log('Attempting to create volunteer option:', volunteerOptionData);
+
+    await VolunteerOptionModel.createVolunteerOption(volunteerOptionData as any);
     
-    // Invalidate options cache
+    // Clear all volunteer options cache (both general and user-specific)
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey());
+    // Clear all volunteer-related cache to ensure fresh data
+    volunteerCache.invalidateVolunteers();
+    
+    console.log('Volunteer option created successfully, cache cleared');
     
     res.status(201).json({ message: 'Volunteer option created' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create volunteer option' });
+    console.error('Error creating volunteer option:', err);
+    res.status(500).json({ error: 'Failed to create volunteer option', details: err instanceof Error ? err.message : 'Unknown error' });
   }
 };
 
@@ -68,7 +109,7 @@ export const addVolunteerOption = async (req: Request, res: Response): Promise<v
 export const updateVolunteerOption = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { title, description, date, location, skills, tools } = req.body as any;
+    const { title, description, date, location, skills, tools, hour, spots } = req.body as any;
 
     let imageUrl: string | undefined;
     const file = (req as any).file as Express.Multer.File | undefined;
@@ -89,6 +130,8 @@ export const updateVolunteerOption = async (req: Request, res: Response): Promis
       location,
       skills,
       tools,
+      hour,
+      spots: parseInt(spots) || 1,
     } as any);
     
     // Invalidate options cache
@@ -119,7 +162,7 @@ export const deleteVolunteerOption = async (req: Request, res: Response): Promis
 // Accept a volunteer option proposal with optional local file upload
 export const addVolunteerProposal = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { title, proposal, location, date, tools } = req.body as any;
+    const { title, proposal, location, date, tools, hour, spots } = req.body as any;
     const userId = req.user?.userId;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -147,6 +190,8 @@ export const addVolunteerProposal = async (req: AuthRequest, res: Response): Pro
       location,
       date,
       tools,
+      hour,
+      spots: parseInt(spots) || 1,
       document_path: savedPath,
     });
 

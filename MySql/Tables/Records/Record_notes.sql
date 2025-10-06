@@ -16,8 +16,8 @@ CREATE TABLE record_notes (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL,
-  FOREIGN KEY (resolved_by) REFERENCES admins(id) ON DELETE SET NULL
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Add index for better performance

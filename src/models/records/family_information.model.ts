@@ -70,7 +70,7 @@ export const updateFamilyInformation = async (recordId: number, data: Partial<Fa
     const values: any[] = [];
     
     Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined && key !== 'id' && key !== 'record_id') {
+      if (value !== undefined && key !== 'id' && key !== 'record_id' && key !== 'created_at' && key !== 'updated_at') {
         if (key === 'family_members') {
           fields.push(`${key} = ?`);
           values.push(JSON.stringify(value));
@@ -83,6 +83,8 @@ export const updateFamilyInformation = async (recordId: number, data: Partial<Fa
     
     if (fields.length === 0) return;
     
+    // Add updated_at field
+    fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(recordId);
     
     const sql = `UPDATE family_information SET ${fields.join(', ')} WHERE record_id = ?`;
@@ -101,7 +103,14 @@ export const getFamilyInformation = async (recordId: number): Promise<FamilyInfo
       const row = rows[0];
       return {
         ...row,
-        family_members: row.family_members ? JSON.parse(row.family_members as unknown as string) : []
+        family_members: row.family_members ? (() => {
+          try {
+            return JSON.parse(row.family_members as unknown as string);
+          } catch (e) {
+            console.warn('Invalid JSON in family_members field, returning empty array:', row.family_members);
+            return [];
+          }
+        })() : []
       };
     }
     return null;

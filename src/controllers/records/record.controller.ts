@@ -3,6 +3,7 @@ import * as RecordModel from '../../models/records/record.model';
 import * as PersonalDataModel from '../../models/records/personal_data.model';
 import { createOrUpdateCompletePersonalData } from '../../models/records/complete_personal_data.model';
 import { db } from '../../db';
+import jwt from 'jsonwebtoken';
 import googleDriveService from '../../services/googleDriveOAuth.service';
 
 // Create new record
@@ -49,6 +50,299 @@ export const createRecord = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Create record directly by admin (bypass workflow)
+export const createAdminDirectRecord = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = (req as any).user?.userId || (req as any).user?.id;
+    
+    if (!adminId) {
+      res.status(401).json({ error: 'Admin not authenticated' });
+      return;
+    }
+    
+    // Verify admin permissions (optional - you can add admin role checking here)
+    // For now, we'll assume any authenticated user can create admin records
+    
+    // Process form data (same structure as completeRecord)
+    const formData = req.body.data ? JSON.parse(req.body.data) : req.body;
+    
+    const {
+      complete_personal_data,
+      family_information,
+      disability_information,
+      socioeconomic_information,
+      documentation_requirements
+    } = formData;
+    
+    // Create main record with admin-created status
+    const recordId = await RecordModel.createRecord({
+      status: 'active', // Skip all workflow phases
+      phase: 'completed', // Mark as completed immediately
+      created_by: adminId,
+      admin_created: true // New field to track admin-created records
+    });
+    
+    console.log('=== ADMIN DIRECT RECORD CREATION ===');
+    console.log('Record ID:', recordId);
+    console.log('Admin ID:', adminId);
+    
+    // Create/update complete personal data
+    if (complete_personal_data) {
+      console.log('=== ADMIN: SAVING COMPLETE PERSONAL DATA ===');
+      console.log('Record ID:', recordId);
+      console.log('Complete Personal Data:', JSON.stringify(complete_personal_data, null, 2));
+      await createOrUpdateCompletePersonalData(recordId, complete_personal_data);
+      console.log('Complete personal data saved successfully');
+    } else {
+      console.log('WARNING: No complete_personal_data provided to admin direct record creation');
+    }
+    
+    // Create/update family information
+    if (family_information) {
+      await RecordModel.createOrUpdateFamilyInformation(recordId, family_information);
+    }
+    
+    // Create/update disability information
+    if (disability_information) {
+      console.log('=== ADMIN: SAVING DISABILITY DATA ===');
+      console.log('Record ID:', recordId);
+      console.log('Disability Information:', JSON.stringify(disability_information, null, 2));
+      await RecordModel.createOrUpdateDisabilityData(recordId, disability_information);
+      
+      // Also create enrollment_form entry with medical information
+      if (disability_information.medical_additional) {
+        console.log('=== ADMIN: CREATING ENROLLMENT FORM WITH MEDICAL DATA ===');
+        const enrollmentData = {
+          enrollment_date: new Date().toISOString().split('T')[0], // Today's date
+          applicant_full_name: complete_personal_data?.full_name || '',
+          applicant_cedula: complete_personal_data?.cedula || '',
+          blood_type: disability_information.medical_additional.blood_type || null,
+          medical_conditions: disability_information.medical_additional.diseases || null,
+          // Add other fields as needed
+        };
+        
+        console.log('Enrollment Data:', JSON.stringify(enrollmentData, null, 2));
+        await RecordModel.createOrUpdateEnrollmentForm(recordId, enrollmentData);
+      }
+    }
+    
+    // Create/update documentation requirements
+    if (documentation_requirements) {
+      await RecordModel.createOrUpdateRegistrationRequirements(recordId, documentation_requirements);
+    }
+    
+    // Create/update socioeconomic information
+    if (socioeconomic_information) {
+      console.log('=== ADMIN: SAVING SOCIOECONOMIC DATA ===');
+      console.log('Record ID:', recordId);
+      console.log('Socioeconomic Information:', JSON.stringify(socioeconomic_information, null, 2));
+      await RecordModel.createOrUpdateSocioeconomicData(recordId, socioeconomic_information);
+    }
+    
+    // Create user folder in ASONIPED-Records-Shared (regardless of files)
+    let userFolderId = null;
+    try {
+      if (complete_personal_data && complete_personal_data.full_name && complete_personal_data.cedula) {
+        const folderName = `${complete_personal_data.full_name} - ${complete_personal_data.cedula}`;
+        const parentFolderId = '1g8DwK78x4SOXSRo2jyqQWBCMVkonH38e'; // ASONIPED-Records-Shared folder ID
+        
+        console.log('=== ADMIN: CREATING GOOGLE DRIVE FOLDER ===');
+        console.log('Folder Name:', folderName);
+        console.log('Parent Folder ID:', parentFolderId);
+        
+        // Initialize Google Drive service if needed
+        const isInitialized = await googleDriveService.initialize();
+        if (!isInitialized) {
+          console.error('Failed to initialize Google Drive service');
+          throw new Error('Google Drive service initialization failed');
+        }
+        
+        // Check if folder already exists in the parent folder
+        const existingFolders = await googleDriveService.listFiles(parentFolderId);
+        const existingFolder = existingFolders.find(folder => folder.name === folderName);
+        
+        if (existingFolder) {
+          userFolderId = existingFolder.id;
+          console.log('Using existing user folder:', existingFolder);
+        } else {
+          const folderResult = await googleDriveService.createFolder(folderName, parentFolderId);
+          userFolderId = folderResult.id;
+          console.log('User folder created successfully in ASONIPED-Records-Shared:', folderResult);
+        }
+      } else {
+        console.log('WARNING: Cannot create Google Drive folder - missing complete_personal_data or name/cedula');
+      }
+    } catch (folderError) {
+      console.error('Error creating user folder:', folderError);
+      // Continue without folder if creation fails
+    }
+
+    // Process documents if they exist
+    console.log('=== ADMIN: CHECKING FOR FILES ===');
+    console.log('req.files exists:', !!req.files);
+    console.log('req.files is array:', Array.isArray(req.files));
+    console.log('req.files length:', req.files ? req.files.length : 'N/A');
+    if (req.files && Array.isArray(req.files)) {
+      console.log('Files received:', req.files.map(f => ({
+        fieldname: f.fieldname,
+        originalname: f.originalname,
+        size: f.size,
+        mimetype: f.mimetype
+      })));
+    }
+    
+    if (req.files && Array.isArray(req.files)) {
+
+      for (const file of req.files) {
+        // Map frontend field name to backend document type (same logic as completeRecord)
+        const mapDocumentType = (fieldname: string, originalName: string): string => {
+          const fieldnameMapping: { [key: string]: string } = {
+            'dictamen_medico': 'medical_diagnosis',
+            'constancia_nacimiento': 'birth_certificate',
+            'copia_cedula': 'cedula',
+            'copias_cedulas_familia': 'copias_cedulas_familia',
+            'foto_pasaporte': 'photo',
+            'constancia_pension_ccss': 'pension_certificate',
+            'constancia_pension_alimentaria': 'pension_alimentaria',
+            'constancia_estudio': 'study_certificate',
+            'cuenta_banco_nacional': 'cuenta_banco_nacional',
+            'informacion_pago': 'payment_info'
+          };
+          
+          if (fieldname && fieldname !== 'documents' && fieldnameMapping[fieldname]) {
+            return fieldnameMapping[fieldname];
+          }
+          
+          if (fieldname === 'documents' || fieldname === '') {
+            const fileName = originalName.toLowerCase();
+            
+            if (fileName.includes('dictamen') || fileName.includes('medico')) {
+              return 'medical_diagnosis';
+            }
+            if (fileName.includes('nacimiento') || fileName.includes('birth')) {
+              return 'birth_certificate';
+            }
+            if (fileName.includes('cedula') && fileName.includes('familia')) {
+              return 'copias_cedulas_familia';
+            }
+            if (fileName.includes('cedula') || fileName.includes('identificacion')) {
+              return 'cedula';
+            }
+            if (fileName.includes('foto') || fileName.includes('photo')) {
+              return 'photo';
+            }
+            if (fileName.includes('pension') && fileName.includes('alimentaria')) {
+              return 'pension_alimentaria';
+            }
+            if (fileName.includes('pension') || fileName.includes('ccss')) {
+              return 'pension_certificate';
+            }
+            if (fileName.includes('estudio') || fileName.includes('study')) {
+              return 'study_certificate';
+            }
+            if (fileName.includes('banco') || fileName.includes('nacional')) {
+              return 'cuenta_banco_nacional';
+            }
+            if (fileName.includes('pago') || fileName.includes('payment')) {
+              return 'payment_info';
+            }
+          }
+          
+          return 'other';
+        };
+        
+        const documentType = mapDocumentType(file.fieldname || '', file.originalname || '');
+        
+        // Upload to Google Drive
+        let googleDriveData = null;
+        try {
+          console.log('=== ADMIN: UPLOADING FILE TO GOOGLE DRIVE ===');
+          console.log('File Name:', file.originalname);
+          console.log('Document Type:', documentType);
+          console.log('User Folder ID:', userFolderId);
+          console.log('File Size:', file.size);
+          
+          const driveFileName = googleDriveService.generateFileName(documentType, recordId, file.originalname);
+          const mimeType = file.mimetype || 'application/octet-stream';
+          
+          console.log('Generated Drive File Name:', driveFileName);
+          console.log('MIME Type:', mimeType);
+          
+          const driveResult = await googleDriveService.uploadFile(
+            file.buffer,
+            driveFileName,
+            mimeType,
+            userFolderId
+          );
+          
+          googleDriveData = {
+            google_drive_id: driveResult.id,
+            google_drive_url: driveResult.webViewLink,
+            google_drive_name: driveResult.name
+          };
+          
+          console.log('File uploaded to Google Drive successfully:', driveResult);
+        } catch (driveError) {
+          console.error('Error uploading to Google Drive:', driveError);
+          const detail = driveError instanceof Error ? driveError.message : String(driveError);
+          console.error('Drive Error Details:', detail);
+        }
+        
+        // Create document record
+        await RecordModel.createDocument(recordId, {
+          document_type: documentType,
+          file_path: '',
+          file_name: googleDriveData?.google_drive_name || file.originalname || '',
+          file_size: file.size || 0,
+          original_name: file.originalname || '',
+          uploaded_by: adminId,
+          ...googleDriveData
+        });
+      }
+    }
+    
+    // Add admin creation note with detailed attribution
+    try {
+      // Get admin information for attribution
+      const [adminRows] = await db.query(
+        'SELECT username, full_name FROM users WHERE id = ?',
+        [adminId]
+      ) as [any[], any];
+      
+      const adminInfo = adminRows.length > 0 ? adminRows[0] : null;
+      const adminName = adminInfo?.full_name || adminInfo?.username || 'Administrador';
+      const currentDate = new Date().toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      await RecordModel.addNote(recordId, {
+        note: `Expediente creado directamente por administrador: ${adminName} (${currentDate})`,
+        type: 'milestone',
+        created_by: adminId
+      });
+      
+      console.log(`Admin attribution note added: ${adminName} on ${currentDate}`);
+    } catch (noteError) {
+      console.error('Error adding admin creation note:', noteError);
+    }
+    
+    res.status(201).json({ 
+      message: 'Admin record created successfully',
+      record_id: recordId
+    });
+  } catch (err) {
+    console.error('Error creating admin record:', err);
+    res.status(500).json({ 
+      error: 'Error creating admin record',
+      details: (err as Error).message || String(err)
+    });
+  }
+};
+
 // Get record by ID
 export const getRecordById = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -75,8 +369,11 @@ export const getRecords = async (req: Request, res: Response): Promise<void> => 
     const status = req.query.status as string | undefined;
     const phase = req.query.phase as string | undefined;
     const search = req.query.search as string | undefined;
+    const creator = req.query.creator as string | undefined;
     
-    const { records, total } = await RecordModel.getRecords(page, limit, status, phase, search);
+    console.log('🔍 Controller - getRecords called with:', { page, limit, status, phase, search, creator });
+    
+    const { records, total } = await RecordModel.getRecords(page, limit, status, phase, search, creator);
     
     res.json({
       records,
@@ -88,6 +385,38 @@ export const getRecords = async (req: Request, res: Response): Promise<void> => 
   } catch (err) {
     console.error('Error getting records:', err);
     res.status(500).json({ error: 'Error getting records' });
+  }
+};
+
+// Get geographic analytics data only
+export const getGeographicAnalytics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const geographicData = await RecordModel.getGeographicAnalytics();
+    res.json(geographicData);
+  } catch (error) {
+    console.error('Error getting geographic analytics:', error);
+    res.status(500).json({ error: 'Error getting geographic analytics' });
+  }
+};
+
+// Get disability analytics data only
+export const getDisabilityAnalytics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const disabilityData = await RecordModel.getDisabilityAnalytics();
+    res.json(disabilityData);
+  } catch (error) {
+    console.error('Error getting disability analytics:', error);
+    res.status(500).json({ error: 'Error getting disability analytics' });
+  }
+};
+
+export const getFamilyAnalytics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await RecordModel.getFamilyAnalytics();
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting family analytics:', error);
+    res.status(500).json({ error: 'Error getting family analytics' });
   }
 };
 
@@ -492,6 +821,76 @@ export const getMyRecord = async (req: Request, res: Response): Promise<void> =>
   } catch (err) {
     console.error('Error getting user record:', err);
     res.status(500).json({ error: 'Error getting user record' });
+  }
+};
+
+// Create a signed QR token for Attendance (owner or admin)
+export const createIdQr = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const recordId = parseInt(req.params.id);
+    const requesterId = (req as any).user?.userId || (req as any).user?.id;
+    const roles: string[] = (req as any).user?.roles || [];
+
+    if (!requesterId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Load full record with joined details to access names safely
+    const record = await RecordModel.getRecordWithDetails(recordId);
+    if (!record) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+
+    const isOwner = record.created_by === requesterId || (record.handed_over_to_user && record.handed_over_to === requesterId);
+    const isAdmin = roles.includes('admin');
+    if (!isOwner && !isAdmin) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const fullName = record.complete_personal_data?.full_name || record.personal_data?.full_name || undefined;
+    const userId = isOwner ? requesterId : undefined;
+
+    const secret = process.env.JWT_SECRET || 'your_jwt_secret_key';
+    const token = jwt.sign(
+      {
+        type: 'attendance',
+        record_id: recordId,
+        user_id: userId,
+        full_name: fullName,
+      },
+      secret,
+      { expiresIn: '8h' }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    console.error('Error creating ID QR:', err);
+    res.status(500).json({ error: 'Error creating QR token' });
+  }
+};
+
+// Verify a scanned QR token and stub attendance registration
+export const scanAttendance = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.body || {};
+    if (!token) {
+      res.status(400).json({ error: 'Token is required' });
+      return;
+    }
+    const secret = process.env.JWT_SECRET || 'your_jwt_secret_key';
+    const payload = jwt.verify(token, secret) as any;
+    if (payload?.type !== 'attendance' || !payload?.record_id) {
+      res.status(400).json({ error: 'Invalid token' });
+      return;
+    }
+    // Stub: persist attendance later
+    res.json({ status: 'ok', record_id: payload.record_id, user_id: payload.user_id, full_name: payload.full_name, verified_at: new Date().toISOString() });
+  } catch (err) {
+    console.error('Error scanning attendance:', err);
+    res.status(400).json({ error: 'Invalid or expired token' });
   }
 };
 
@@ -984,5 +1383,309 @@ export const checkPersonalDataTable = async (req: Request, res: Response): Promi
   } catch (err) {
     console.error('Error checking personal_data table:', err);
     res.status(500).json({ error: 'Error checking table', details: (err as Error).message });
+  }
+};
+
+// Admin record edit with override capability
+export const updateRecordAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const recordId = parseInt(req.params.id);
+    const adminId = (req as any).user?.userId || (req as any).user?.id;
+    
+    if (!adminId) {
+      res.status(401).json({ error: 'Admin not authenticated' });
+      return;
+    }
+
+    if (!recordId) {
+      res.status(400).json({ error: 'Invalid record ID' });
+      return;
+    }
+
+    // Check if record exists
+    const existingRecord = await RecordModel.getRecordById(recordId);
+    if (!existingRecord) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+
+    const formData = req.body.data ? JSON.parse(req.body.data) : req.body;
+    const {
+      complete_personal_data, family_information, disability_information,
+      socioeconomic_information, documentation_requirements
+    } = formData;
+
+    console.log('=== ADMIN RECORD UPDATE ===');
+    console.log('Record ID:', recordId);
+    console.log('Admin ID:', adminId);
+    console.log('Form Data:', formData);
+
+    // Update complete personal data
+    if (complete_personal_data) {
+      try {
+        console.log('Updating complete personal data for record:', recordId);
+        await createOrUpdateCompletePersonalData(recordId, complete_personal_data);
+        console.log('Complete personal data updated successfully');
+      } catch (error) {
+        console.error('Error updating complete personal data:', error);
+        throw error;
+      }
+    }
+
+    // Update family information
+    if (family_information) {
+      try {
+        console.log('Updating family information for record:', recordId);
+        await RecordModel.createOrUpdateFamilyInformation(recordId, family_information);
+        console.log('Family information updated successfully');
+      } catch (error) {
+        console.error('Error updating family information:', error);
+        throw error;
+      }
+    }
+
+    // Update disability information
+    if (disability_information) {
+      try {
+        console.log('Updating disability information for record:', recordId);
+        await RecordModel.createOrUpdateDisabilityData(recordId, disability_information);
+        console.log('Disability information updated successfully');
+      } catch (error) {
+        console.error('Error updating disability information:', error);
+        throw error;
+      }
+    }
+
+    // Update socioeconomic information
+    if (socioeconomic_information) {
+      try {
+        console.log('Updating socioeconomic information for record:', recordId);
+        await RecordModel.createOrUpdateSocioeconomicData(recordId, socioeconomic_information);
+        console.log('Socioeconomic information updated successfully');
+      } catch (error) {
+        console.error('Error updating socioeconomic information:', error);
+        throw error;
+      }
+    }
+
+    // Handle documentation requirements and file uploads
+    if (documentation_requirements) {
+      // Process existing documents
+      if (documentation_requirements.existing_documents) {
+        for (const doc of documentation_requirements.existing_documents) {
+          if (doc.id) {
+            await RecordModel.updateDocument(doc.id, {
+              document_type: doc.document_type,
+              original_name: doc.original_name
+            });
+          }
+        }
+      }
+
+      // Process new document uploads
+      if (documentation_requirements.documents) {
+        for (const doc of documentation_requirements.documents) {
+          if (doc.file) {
+            try {
+              // Upload to Google Drive
+              const googleDriveData = await googleDriveService.uploadFile(
+                doc.file,
+                `expedientes/expediente-${recordId}/documentos`,
+                doc.original_name
+              );
+
+              // Create document record
+              await RecordModel.createDocument(recordId, {
+                document_type: doc.document_type,
+                file_path: googleDriveData.webViewLink,
+                file_name: googleDriveData.name,
+                file_size: doc.file.size,
+                original_name: doc.original_name,
+                uploaded_by: adminId,
+                ...googleDriveData
+              });
+            } catch (uploadError) {
+              console.error('Error uploading document:', uploadError);
+              // Continue with other documents even if one fails
+            }
+          }
+        }
+      }
+    }
+
+    // Add admin edit note
+    try {
+      // Get admin information for attribution
+      const [adminRows] = await db.query(
+        'SELECT username, full_name FROM users WHERE id = ?',
+        [adminId]
+      ) as [any[], any];
+      
+      const adminInfo = adminRows.length > 0 ? adminRows[0] : null;
+      const adminName = adminInfo?.full_name || adminInfo?.username || 'Administrador';
+      const currentDate = new Date().toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      await RecordModel.addNote(recordId, {
+        note: `Expediente editado por administrador: ${adminName} (${currentDate})`,
+        type: 'activity',
+        created_by: adminId
+      });
+      
+      console.log(`Admin edit note added: ${adminName} on ${currentDate}`);
+    } catch (noteError) {
+      console.error('Error adding admin edit note:', noteError);
+    }
+
+    res.status(200).json({ 
+      message: 'Record updated successfully by admin',
+      record_id: recordId
+    });
+  } catch (err) {
+    console.error('Error updating admin record:', err);
+    res.status(500).json({
+      error: 'Error updating admin record',
+      details: (err as Error).message || String(err)
+    });
+  }
+};
+
+// Hand over admin-created record to user
+export const handoverRecordToUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const recordId = parseInt(req.params.id);
+    const adminId = (req as any).user?.userId || (req as any).user?.id;
+    const { userId } = req.body;
+    
+    if (!adminId) {
+      res.status(401).json({ error: 'Admin not authenticated' });
+      return;
+    }
+
+    if (!recordId || !userId) {
+      res.status(400).json({ error: 'Record ID and User ID are required' });
+      return;
+    }
+
+    // Check if record exists and is admin-created
+    const existingRecord = await RecordModel.getRecordById(recordId);
+    if (!existingRecord) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+
+    if (!existingRecord.admin_created) {
+      res.status(400).json({ error: 'Only admin-created records can be handed over' });
+      return;
+    }
+
+    // If already handed over, allow reassignment only if to a different user
+    if (existingRecord.handed_over_to_user) {
+      if (existingRecord.handed_over_to === userId) {
+        res.status(400).json({ error: 'Record is already handed over to this user' });
+        return;
+      }
+      // else: allow reassignment below after validations
+    }
+
+    // Check if user exists
+    const [userRows] = await db.query(
+      'SELECT id, username, full_name FROM users WHERE id = ?',
+      [userId]
+    ) as [any[], any];
+
+    if (userRows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const user = userRows[0];
+
+    // Ensure target user is not admin
+    const [roleRows] = await db.query(
+      `SELECT 1 FROM user_role_assignments ura
+       JOIN user_roles ur ON ur.id = ura.role_id
+       WHERE ura.user_id = ? AND ur.name = 'admin' LIMIT 1`,
+      [userId]
+    ) as [any[], any];
+    if (roleRows.length > 0) {
+      res.status(400).json({ error: 'Cannot hand over records to admin users' });
+      return;
+    }
+
+    // Ensure target user does not already have another record
+    const [recordCountRows] = await db.query(
+      `SELECT COUNT(*) AS cnt FROM records 
+       WHERE (created_by = ? OR (handed_over_to_user = TRUE AND handed_over_to = ?))
+         AND id <> ?`,
+      [userId, userId, recordId]
+    ) as [any[], any];
+    const hasOtherRecord = (recordCountRows[0]?.cnt || 0) > 0;
+    if (hasOtherRecord) {
+      res.status(400).json({ error: 'User already has a record' });
+      return;
+    }
+
+    // Update record with handover or reassignment information
+    await db.query(
+      `UPDATE records 
+       SET handed_over_to_user = TRUE,
+           handed_over_to = ?,
+           handed_over_at = NOW(),
+           handed_over_by = ?
+       WHERE id = ?`,
+      [userId, adminId, recordId]
+    );
+
+    // Add handover note
+    try {
+      // Get admin information for attribution
+      const [adminRows] = await db.query(
+        'SELECT username, full_name FROM users WHERE id = ?',
+        [adminId]
+      ) as [any[], any];
+      
+      const adminInfo = adminRows.length > 0 ? adminRows[0] : null;
+      const adminName = adminInfo?.full_name || adminInfo?.username || 'Administrador';
+      const currentDate = new Date().toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      const actionVerb = existingRecord.handed_over_to_user ? 'reasignado' : 'entregado';
+      await RecordModel.addNote(recordId, {
+        note: `Expediente ${actionVerb} al usuario ${user.full_name || user.username} por administrador: ${adminName} (${currentDate})`,
+        type: 'milestone',
+        created_by: adminId
+      });
+      
+      console.log(`Handover note added: ${adminName} handed over to ${user.full_name || user.username} on ${currentDate}`);
+    } catch (noteError) {
+      console.error('Error adding handover note:', noteError);
+    }
+
+    res.status(200).json({ 
+      message: existingRecord.handed_over_to_user ? 'Record successfully reassigned to user' : 'Record successfully handed over to user',
+      record_id: recordId,
+      user: {
+        id: user.id,
+        username: user.username,
+        full_name: user.full_name
+      }
+    });
+  } catch (err) {
+    console.error('Error handing over record:', err);
+    res.status(500).json({
+      error: 'Error handing over record',
+      details: (err as Error).message || String(err)
+    });
   }
 };

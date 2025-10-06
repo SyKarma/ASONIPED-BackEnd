@@ -26,12 +26,26 @@ export const registerForVolunteer = async (req: Request, res: Response): Promise
       return;
     }
 
-    // Register the user
+    // Register the user in volunteer_registrations table
     await VolunteerOptionsModel.registerForVolunteer(userId, volunteer_option_id, notes);
+
+    // Also insert into volunteers table for admin forms view
+    try {
+      const { getUserById } = await import('../../models/user/user.model');
+      const { enrollUserIntoVolunteerOption } = await import('../../models/volunteer/volunteer_forms.model');
+      
+      const user = await getUserById(userId);
+      if (user) {
+        await enrollUserIntoVolunteerOption(user, volunteer_option_id);
+      }
+    } catch (volunteerError) {
+      // Don't fail the registration if this fails
+    }
 
     // Clear volunteer options cache to refresh registration status
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey(userId));
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey()); // Clear general cache too
+    volunteerCache.invalidateVolunteers(); // Also clear volunteers cache
 
     // Get updated spots info
     const updatedSpotsInfo = await VolunteerOptionsModel.getAvailableSpots(volunteer_option_id);

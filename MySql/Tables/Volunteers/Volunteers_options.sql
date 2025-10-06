@@ -6,7 +6,9 @@ CREATE TABLE volunteer_options (
   date VARCHAR(50) NOT NULL,
   location VARCHAR(255) NOT NULL,
   skills TEXT,
-  tools TEXT
+  tools TEXT,
+  hour VARCHAR(10) NOT NULL,
+  spots INT NOT NULL
 );
 
 -- New: Proposals table for volunteer options
@@ -18,6 +20,8 @@ CREATE TABLE IF NOT EXISTS volunteer_option_proposals (
   location VARCHAR(255) NOT NULL,
   date VARCHAR(50) NOT NULL,
   tools TEXT,
+  hour VARCHAR(10) NULL,
+  spots INT NULL,
   document_path VARCHAR(255),
   status ENUM('pending','approved','rejected') DEFAULT 'pending',
   admin_note TEXT,

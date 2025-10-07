@@ -23,6 +23,7 @@ import volunteerRegistrationRoutes from './routes/volunteer/volunteer_registrati
 import donationRoutes from './routes/donations/donation.routes';
 import eventsNewsRoutes from './routes/Events/eventsNews.routes';
 import attendanceRoutes from './routes/attendance/attendance.routes';
+import attendanceNewRoutes from './routes/attendance/attendance_new.routes';
 import workshopRoutes from './routes/workshop/workshop.routes';
 import enrollmentRoutes from './routes/workshop/enrollment.routes';
 import recordRoutes from './routes/records/record.routes';
@@ -134,7 +135,8 @@ app.use('/volunteer-options', volunteerOptionRoutes);
 app.use('/volunteer-registrations', volunteerRegistrationRoutes);
 app.use('/donations', donationRoutes);
 app.use('/events-news', eventsNewsRoutes);
-app.use('/attendance', attendanceRoutes);
+app.use('/attendance', attendanceRoutes); // Legacy attendance routes
+app.use('/api/attendance', attendanceNewRoutes); // New attendance system routes
 app.use('/workshops', workshopRoutes);
 app.use('/enrollments', enrollmentRoutes);
 app.use('/records', recordRoutes);

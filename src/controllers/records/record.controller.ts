@@ -4,6 +4,7 @@ import * as PersonalDataModel from '../../models/records/personal_data.model';
 import { createOrUpdateCompletePersonalData } from '../../models/records/complete_personal_data.model';
 import { db } from '../../db';
 import jwt from 'jsonwebtoken';
+// @ts-ignore
 import googleDriveService from '../../services/googleDriveOAuth.service';
 
 // Create new record
@@ -891,6 +892,66 @@ export const scanAttendance = async (req: Request, res: Response): Promise<void>
   } catch (err) {
     console.error('Error scanning attendance:', err);
     res.status(400).json({ error: 'Invalid or expired token' });
+  }
+};
+
+// Generate static QR code data for beneficiario attendance
+export const generateAttendanceQRData = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const recordId = parseInt(req.params.id);
+    const requesterId = (req as any).user?.userId || (req as any).user?.id;
+    const roles: string[] = (req as any).user?.roles || [];
+
+    if (!requesterId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Load full record with joined details to access names safely
+    const record = await RecordModel.getRecordWithDetails(recordId);
+    if (!record) {
+      res.status(404).json({ error: 'Record not found' });
+      return;
+    }
+
+    const isOwner = record.created_by === requesterId || (record.handed_over_to_user && record.handed_over_to === requesterId);
+    const isAdmin = roles.includes('admin');
+    if (!isOwner && !isAdmin) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    // Check if record is active (approved and completed)
+    if (record.status !== 'active') {
+      res.status(400).json({ error: 'Only active records can generate attendance QR codes' });
+      return;
+    }
+
+    const fullName = record.complete_personal_data?.full_name || record.personal_data?.full_name || undefined;
+    
+    if (!fullName) {
+      res.status(400).json({ error: 'Record must have a full name to generate attendance QR code' });
+      return;
+    }
+
+    // Generate static QR data as agreed in our design
+    const qrData = {
+      record_id: recordId,
+      name: fullName
+    };
+
+    res.json({ 
+      qrData,
+      record: {
+        id: recordId,
+        record_number: record.record_number,
+        full_name: fullName,
+        status: record.status
+      }
+    });
+  } catch (err) {
+    console.error('Error generating attendance QR data:', err);
+    res.status(500).json({ error: 'Error generating attendance QR data' });
   }
 };
 

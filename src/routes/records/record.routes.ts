@@ -26,6 +26,7 @@ router.get('/disability-analytics', authenticateToken, RecordController.getDisab
 router.get('/family-analytics', authenticateToken, RecordController.getFamilyAnalytics); // Family analytics only
 router.get('/debug/database', authenticateToken, RecordController.debugDatabase); // Temporary debug
 router.post('/:id/id-qr', authenticateToken, RecordController.createIdQr); // Create signed QR for ID (owner/admin)
+router.get('/:id/attendance-qr', authenticateToken, RecordController.generateAttendanceQRData); // Generate static QR data for attendance
 router.post('/attendance/scan', authenticateToken, RecordController.scanAttendance); // Verify QR and register attendance (stub)
 
 // Routes with specific parameters

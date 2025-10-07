@@ -19,6 +19,7 @@ import { authenticateToken } from '../src/middleware/auth.middleware';
 import userRoutes from './routes/user/user.routes';
 import volunteerRoutes from './routes/volunteer/volunteer_forms.routes';
 import volunteerOptionRoutes from './routes/volunteer/volunteer_options.routes';
+import volunteerRegistrationRoutes from './routes/volunteer/volunteer_registrations.routes';
 import donationRoutes from './routes/donations/donation.routes';
 import eventsNewsRoutes from './routes/Events/eventsNews.routes';
 import attendanceRoutes from './routes/attendance/attendance.routes';
@@ -130,6 +131,7 @@ app.post('/admin-login', async (req, res): Promise<void> => {
 app.use('/users', userRoutes);
 app.use('/volunteers', volunteerRoutes);
 app.use('/volunteer-options', volunteerOptionRoutes);
+app.use('/volunteer-registrations', volunteerRegistrationRoutes);
 app.use('/donations', donationRoutes);
 app.use('/events-news', eventsNewsRoutes);
 app.use('/attendance', attendanceRoutes);

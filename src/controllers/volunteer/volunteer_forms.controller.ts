@@ -20,6 +20,7 @@ export const getVolunteers = async (req: Request, res: Response): Promise<void> 
     const cachedData = volunteerCache.get(cacheKey);
     if (cachedData) {
       res.json(cachedData);
+      return;
     }
 
     // If not in cache, fetch from database
@@ -46,6 +47,7 @@ export const getVolunteerById = async (req: Request, res: Response): Promise<voi
     const cachedVolunteer = volunteerCache.get(cacheKey);
     if (cachedVolunteer) {
       res.json(cachedVolunteer);
+      return;
     }
 
     const volunteer = await VolunteerModel.getVolunteerById(id);
@@ -124,7 +126,16 @@ export const enrollCurrentUser = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
+    // Insert into volunteers table (for admin forms view)
     const result = await VolunteerModel.enrollUserIntoVolunteerOption(user, optionId);
+
+    // Also insert into volunteer_registrations table (for registered_count calculation)
+    try {
+      const { registerForVolunteer } = await import('../../models/volunteer/volunteer_options.model');
+      await registerForVolunteer(req.user.userId, optionId);
+    } catch (regError) {
+      // Don't fail the entire enrollment if this fails
+    }
 
     // Invalidate list cache
     volunteerCache.invalidateVolunteers();

@@ -16,7 +16,7 @@ if (!fs.existsSync(optionImagesDir)) {
 const imageStorage = multer.memoryStorage();
 const uploadOptionImage = multer({ storage: imageStorage });
 
-// Get all volunteer options
+// Get all volunteer options (optional auth for user-specific registration status)
 router.get('/', VolunteerOptionController.getVolunteerOptions);
 
 // Add a new volunteer option (protected) with optional image upload (field name: image)

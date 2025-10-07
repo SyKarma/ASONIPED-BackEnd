@@ -20,8 +20,8 @@ class VolunteerCacheService {
     return `volunteer:${id}`;
   }
 
-  getVolunteerOptionsKey(): string {
-    return 'volunteer_options';
+  getVolunteerOptionsKey(userId?: number): string {
+    return userId ? `volunteer_options:user:${userId}` : 'volunteer_options:all';
   }
 
   // Get cached data

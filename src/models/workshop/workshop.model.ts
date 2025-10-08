@@ -5,7 +5,7 @@ export interface Workshop {
   titulo: string;
   ubicacion: string;
   descripcion: string;
-  materials: string[]; // Guardado como JSON
+  materiales: string[]; // Guardado como JSON
   aprender: string;
   fecha: string;      // 'YYYY-MM-DD'
   hora: string;       // 'HH:mm'
@@ -18,7 +18,7 @@ export const WorkshopModel = {
     const [rows] = await db.query('SELECT * FROM workshops');
     return (rows as any[]).map(row => ({
       ...row,
-      materials: JSON.parse(row.materials),
+      materiales: JSON.parse(row.materials),
     })) as Workshop[];
   },
 
@@ -28,15 +28,15 @@ export const WorkshopModel = {
     const row = (rows as any[])[0];
     return {
       ...row,
-      materials: JSON.parse(row.materials),
+      materiales: JSON.parse(row.materials),
     } as Workshop;
   },
 
   async create(workshop: Workshop) {
-    const { titulo, ubicacion, descripcion, materials, aprender, fecha, hora, capacidad, imagen } = workshop;
+    const { titulo, ubicacion, descripcion, materiales, aprender, fecha, hora, capacidad, imagen } = workshop;
     const [result] = await db.query(
       'INSERT INTO workshops (titulo, ubicacion, descripcion, materials, aprender, fecha, hora, capacidad, imagen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [titulo, ubicacion, descripcion, JSON.stringify(materials), aprender, fecha, hora, capacidad, imagen]
+      [titulo, ubicacion, descripcion, JSON.stringify(materiales), aprender, fecha, hora, capacidad, imagen]
     );
     return { id: (result as any).insertId, ...workshop };
   },
@@ -47,7 +47,7 @@ export const WorkshopModel = {
     if (workshop.titulo !== undefined) { fields.push('titulo = ?'); values.push(workshop.titulo); }
     if (workshop.ubicacion !== undefined) { fields.push('ubicacion = ?'); values.push(workshop.ubicacion); }
     if (workshop.descripcion !== undefined) { fields.push('descripcion = ?'); values.push(workshop.descripcion); }
-    if (workshop.materials !== undefined) { fields.push('materials = ?'); values.push(JSON.stringify(workshop.materials)); }
+    if (workshop.materiales !== undefined) { fields.push('materials = ?'); values.push(JSON.stringify(workshop.materiales)); }
     if (workshop.aprender !== undefined) { fields.push('aprender = ?'); values.push(workshop.aprender); }
     if (workshop.fecha !== undefined) { fields.push('fecha = ?'); values.push(workshop.fecha); }
     if (workshop.hora !== undefined) { fields.push('hora = ?'); values.push(workshop.hora); }

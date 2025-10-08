@@ -26,6 +26,7 @@ import attendanceRoutes from './routes/attendance/attendance.routes';
 import attendanceNewRoutes from './routes/attendance/attendance_new.routes';
 import workshopRoutes from './routes/workshop/workshop.routes';
 import enrollmentRoutes from './routes/workshop/enrollment.routes';
+import workshopEnrollmentRoutes from './routes/workshop/workshop_enrollments.routes';
 import recordRoutes from './routes/records/record.routes';
 import recordDocumentRoutes from './routes/records/document.routes';
 import donationTicketRoutes from './routes/donations/donation_ticket.routes';
@@ -52,7 +53,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 const io = setupSocketIO(server);
 
 // Middleware configuration
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+const uploadsPath = path.join(__dirname, '../../uploads');
+app.use('/uploads', express.static(uploadsPath));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors({
@@ -139,6 +141,7 @@ app.use('/attendance', attendanceRoutes); // Legacy attendance routes
 app.use('/api/attendance', attendanceNewRoutes); // New attendance system routes
 app.use('/workshops', workshopRoutes);
 app.use('/enrollments', enrollmentRoutes);
+app.use('/workshop-enrollments', workshopEnrollmentRoutes);
 app.use('/records', recordRoutes);
 app.use('/donation-tickets', donationTicketRoutes);
 app.use('/ticket-messages', ticketMessageRoutes);

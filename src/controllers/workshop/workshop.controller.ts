@@ -14,8 +14,8 @@ function validateWorkshop(data: Partial<Workshop>) {
   if (!data.descripcion || typeof data.descripcion !== 'string' || data.descripcion.trim().length === 0) {
     errors.push('La descripción es obligatoria y debe ser un texto.');
   }
-  if (!data.materiales || typeof data.materiales !== 'string' || data.materiales.trim().length === 0) {
-    errors.push('Los materiales son obligatorios y deben ser un texto.');
+  if (!data.materiales || !Array.isArray(data.materiales) || data.materiales.length === 0) {
+    errors.push('Los materiales son obligatorios y deben ser un array.');
   }
   if (!data.aprender || typeof data.aprender !== 'string' || data.aprender.trim().length === 0) {
     errors.push('El campo "aprender" es obligatorio y debe ser un texto.');

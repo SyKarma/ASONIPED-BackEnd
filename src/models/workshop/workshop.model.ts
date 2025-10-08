@@ -18,7 +18,7 @@ export const WorkshopModel = {
     const [rows] = await db.query('SELECT * FROM workshops');
     return (rows as any[]).map(row => ({
       ...row,
-      materials: JSON.parse(row.materials),
+      materiales: JSON.parse(row.materials),
     })) as Workshop[];
   },
 
@@ -28,7 +28,7 @@ export const WorkshopModel = {
     const row = (rows as any[])[0];
     return {
       ...row,
-      materials: JSON.parse(row.materials),
+      materiales: JSON.parse(row.materials),
     } as Workshop;
   },
 

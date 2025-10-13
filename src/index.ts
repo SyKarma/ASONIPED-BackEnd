@@ -6,6 +6,9 @@ import path from 'path';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
+// Swagger setup
+import { setupSwagger } from './config/swagger';
+
 // Database connection
 import { db } from '../src/db';
 
@@ -16,29 +19,28 @@ import { setupSocketIO } from './socket';
 import { authenticateToken } from '../src/middleware/auth.middleware';
 
 // Route imports
-import userRoutes from './routes/user/user.routes';
-import volunteerRoutes from './routes/volunteer/volunteer_forms.routes';
-import volunteerOptionRoutes from './routes/volunteer/volunteer_options.routes';
-import volunteerRegistrationRoutes from './routes/volunteer/volunteer_registrations.routes';
-import donationRoutes from './routes/donations/donation.routes';
-import eventsNewsRoutes from './routes/Events/eventsNews.routes';
-import attendanceRoutes from './routes/attendance/attendance.routes';
-import attendanceNewRoutes from './routes/attendance/attendance_new.routes';
-import workshopRoutes from './routes/workshop/workshop.routes';
-import enrollmentRoutes from './routes/workshop/enrollment.routes';
-import workshopEnrollmentRoutes from './routes/workshop/workshop_enrollments.routes';
-import recordRoutes from './routes/records/record.routes';
-import recordDocumentRoutes from './routes/records/document.routes';
-import donationTicketRoutes from './routes/donations/donation_ticket.routes';
-import ticketMessageRoutes from './routes/donations/ticket_message.routes';
-import anonymousTicketRoutes from './routes/donations/anonymous_ticket.routes';
-import heroSectionRoutes from './routes/landing/Hero-section.routes';
-import aboutSectionRoutes from './routes/landing/About-section.routes';
-import LandingDonacionesComponent  from './routes/landing/landing-donaciones-component.routes';
-import LandingDonacionesCard  from './routes/landing/landing-donaciones-card.routes';
-import uploadRoutes from './routes/landing/upload.routes';
-import landingVolunteerRoutes from './routes/landing/landing-volunteer.routes';
-import googleDriveRoutes from './routes/admin/googleDrive.routes';
+import userRoutes from './modules/user/routes/user.routes';
+import volunteerRoutes from './modules/volunteer/routes/volunteer_forms.routes';
+import volunteerOptionRoutes from './modules/volunteer/routes/volunteer_options.routes';
+import volunteerRegistrationRoutes from './modules/volunteer/routes/volunteer_registrations.routes';
+import donationRoutes from './modules/donations/routes/donation.routes';
+import eventsNewsRoutes from './modules/events/routes/eventsNews.routes';
+import attendanceNewRoutes from './modules/attendance/routes/attendance_new.routes';
+import workshopRoutes from './modules/workshop/routes/workshop.routes';
+import enrollmentRoutes from './modules/workshop/routes/enrollment.routes';
+import workshopEnrollmentRoutes from './modules/workshop/routes/workshop_enrollments.routes';
+import recordRoutes from './modules/records/routes/record.routes';
+import recordDocumentRoutes from './modules/records/routes/document.routes';
+import donationTicketRoutes from './modules/donations/routes/donation_ticket.routes';
+import ticketMessageRoutes from './modules/donations/routes/ticket_message.routes';
+import anonymousTicketRoutes from './modules/donations/routes/anonymous_ticket.routes';
+import heroSectionRoutes from './modules/landing/routes/Hero-section.routes';
+import aboutSectionRoutes from './modules/landing/routes/About-section.routes';
+import LandingDonacionesComponent  from './modules/landing/routes/landing-donaciones-component.routes';
+import LandingDonacionesCard  from './modules/landing/routes/landing-donaciones-card.routes';
+import uploadRoutes from './modules/landing/routes/upload.routes';
+import landingVolunteerRoutes from './modules/landing/routes/landing-volunteer.routes';
+import googleDriveRoutes from './modules/user/routes/googleDrive.routes';
 
 // Load environment variables
 dotenv.config();
@@ -58,9 +60,12 @@ app.use('/uploads', express.static(uploadsPath));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: true, // Allow all origins for mobile access
   credentials: true
 }));
+
+// Setup Swagger documentation
+setupSwagger(app);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -137,7 +142,6 @@ app.use('/volunteer-options', volunteerOptionRoutes);
 app.use('/volunteer-registrations', volunteerRegistrationRoutes);
 app.use('/donations', donationRoutes);
 app.use('/events-news', eventsNewsRoutes);
-app.use('/attendance', attendanceRoutes); // Legacy attendance routes
 app.use('/api/attendance', attendanceNewRoutes); // New attendance system routes
 app.use('/workshops', workshopRoutes);
 app.use('/enrollments', enrollmentRoutes);

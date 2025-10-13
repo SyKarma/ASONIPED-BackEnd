@@ -1,13 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// Environment variables for authentication
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'changeme';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
-/**
- * Extended Request interface with user authentication data
- */
 export interface AuthRequest extends Request {
   user?: {
     username: string;
@@ -16,9 +12,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-/**
- * Authenticate admin users using JWT token
- */
+
 export const authenticateAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
   
@@ -38,9 +32,7 @@ export const authenticateAdmin = (req: AuthRequest, res: Response, next: NextFun
   }
 };
 
-/**
- * Verify JWT token and return decoded data (for Socket.io)
- */
+
 export const verifyToken = async (token: string): Promise<{ username: string; role?: string; userId?: number }> => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { 
@@ -63,9 +55,7 @@ export const verifyToken = async (token: string): Promise<{ username: string; ro
   }
 };
 
-/**
- * Authenticate users using JWT token with enhanced user ID handling
- */
+
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];

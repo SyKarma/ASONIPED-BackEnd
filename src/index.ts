@@ -2,9 +2,8 @@ import express from 'express';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import path from 'path';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 
 // Swagger setup
 import { setupSwagger } from './config/swagger';
@@ -49,7 +48,6 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
 // Setup Socket.io
 const io = setupSocketIO(server);
@@ -59,6 +57,7 @@ const uploadsPath = path.join(__dirname, '../../uploads');
 app.use('/uploads', express.static(uploadsPath));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
 app.use(cors({
   origin: true, // Allow all origins for mobile access
   credentials: true
@@ -82,57 +81,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Debug endpoint for ticket system diagnostics
-app.get('/debug/tickets', async (req, res) => {
-  try {
-    // Check if tables exist and get row counts
-    const [donationsCount] = await db.execute('SELECT COUNT(*) as count FROM donations') as [any[], any];
-    const [ticketsCount] = await db.execute('SELECT COUNT(*) as count FROM donation_tickets') as [any[], any];
-    const [messagesCount] = await db.execute('SELECT COUNT(*) as count FROM ticket_messages') as [any[], any];
-    
-    res.json({
-      donations: donationsCount[0],
-      tickets: ticketsCount[0],
-      messages: messagesCount[0],
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error in debug tickets:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
 
-// Legacy admin login endpoint (deprecated - use /users/login instead)
-app.post('/admin-login', async (req, res): Promise<void> => {
-  const { username, password } = req.body;
-  
-  try {
-    const [rows] = await db.query('SELECT * FROM admins WHERE username = ?', [username]) as [any[], any];
-    
-    if (Array.isArray(rows) && rows.length === 0) {
-      res.status(401).json({ message: 'Invalid credentials' });
-      return;
-    }
-    
-    const admin = rows[0];
-    const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
-    
-    if (!isPasswordValid) {
-      res.status(401).json({ message: 'Invalid credentials' });
-      return;
-    }
-    
-    const token = jwt.sign(
-      { username: admin.username, role: admin.role },
-      JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-    
-    res.json({ token });
-  } catch (error) {
-    res.status(500).json({ message: 'Error during login' });
-  }
-});
+
 
 // API Routes
 // Note: Individual route protection is handled within each route file
@@ -159,14 +109,35 @@ app.use('/api/landing-donaciones-component', LandingDonacionesComponent);
 app.use('/api/landing-volunteer', landingVolunteerRoutes);
 app.use('/admin/google-drive', googleDriveRoutes);
 
-// Temporarily disabled - uncomment when needed
-// app.use('/records', recordDocumentRoutes);
 
 // Database connection and server startup
 const startServer = async (): Promise<void> => {
   try {
     await db.getConnection();
     console.log('✅ MySQL connection successful!');
+    
+    // Initialize Google Drive service on startup
+    try {
+      console.log('🚀 STARTUP: Initializing Google Drive service...');
+      const googleDriveService = require('./services/googleDriveOAuth.service');
+      console.log('🚀 STARTUP: Google Drive service module loaded');
+      
+      const initialized = await googleDriveService.initialize();
+      console.log('🚀 STARTUP: Google Drive service initialization result:', initialized);
+      
+      if (initialized) {
+        console.log('✅ STARTUP: Google Drive service initialized successfully!');
+        
+        // Check service status
+        const status = await googleDriveService.getServiceStatus();
+        console.log('📊 STARTUP: Google Drive service status:', status);
+      } else {
+        console.log('⚠️ STARTUP: Google Drive service initialization failed - manual authorization may be required');
+      }
+    } catch (error) {
+      console.log('❌ STARTUP: Google Drive service initialization error:', (error as Error).message);
+      console.log('❌ STARTUP: Error stack:', (error as Error).stack);
+    }
     
     server.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);

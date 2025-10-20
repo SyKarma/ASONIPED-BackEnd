@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { sessionService } from '../services/session.service';
 
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'changeme';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
@@ -74,14 +75,22 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     };
     
     // Ensure userId is available for consistent access
-    if (decoded.userId) {
-      (req as any).user = { ...decoded, userId: decoded.userId };
-    } else if (decoded.id) {
-      (req as any).user = { ...decoded, userId: decoded.id };
-    } else {
-      (req as any).user = decoded;
+    const userId = decoded.userId || decoded.id;
+    if (!userId) {
+      res.status(403).json({ message: 'Invalid token: No user ID' });
+      return;
+    }
+
+    // Check if this token is the active session for this user
+    if (!sessionService.isTokenValid(userId, token)) {
+      res.status(401).json({ 
+        message: 'Session invalidated. Please log in again.',
+        code: 'SESSION_INVALIDATED'
+      });
+      return;
     }
     
+    (req as any).user = { ...decoded, userId };
     next();
   } catch (error) {
     res.status(403).json({ message: 'Invalid token' });

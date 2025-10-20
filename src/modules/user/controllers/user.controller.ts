@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import * as UserModel from '../models/user.model';
 import { emailService } from '../../../services/email.service';
+import { sessionService } from '../../../services/session.service';
 import { db } from '../../../db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
@@ -178,6 +179,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '24h' }
     );
 
+    // Set active session (this will invalidate any previous sessions)
+    sessionService.setActiveSession(user.id!, token);
+
     res.json({
       message: 'Login successful',
       token,
@@ -192,6 +196,88 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
   } catch (err) {
     console.error('Error during login:', err);
     res.status(500).json({ error: 'Error during login' });
+  }
+};
+
+// User logout
+export const logoutUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Try to get userId from token if available
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    let userId: number | undefined;
+    
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as { 
+          userId?: number; 
+          id?: number 
+        };
+        userId = decoded.userId || decoded.id;
+      } catch (tokenError) {
+        // Token is invalid, but we still want to allow logout
+      }
+    }
+    
+    if (userId) {
+      // Only remove session if this token matches the active session
+      const activeSession = sessionService.getActiveSession(userId);
+      if (activeSession && activeSession.token === token) {
+        // This is the active session, safe to remove
+        sessionService.removeActiveSession(userId);
+      }
+    }
+
+    res.json({ message: 'Logout successful' });
+  } catch (err) {
+    console.error('Error during logout:', err);
+    res.status(500).json({ error: 'Error during logout' });
+  }
+};
+
+// Validate session (simple endpoint for route protection)
+export const validateSession = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      res.status(401).json({ message: 'No token provided' });
+      return;
+    }
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { 
+        userId?: number; 
+        id?: number 
+      };
+      
+      const userId = decoded.userId || decoded.id;
+      
+      if (!userId) {
+        res.status(401).json({ message: 'Invalid token: No user ID' });
+        return;
+      }
+
+      // Check if this token is the active session for this user
+      const isValid = sessionService.isTokenValid(userId, token);
+      
+      if (!isValid) {
+        res.status(401).json({ 
+          message: 'Session invalidated. Please log in again.',
+          code: 'SESSION_INVALIDATED'
+        });
+        return;
+      }
+
+      res.json({ valid: true, userId });
+    } catch (tokenError) {
+      res.status(401).json({ message: 'Invalid token' });
+    }
+  } catch (err) {
+    console.error('Error during session validation:', err);
+    res.status(500).json({ error: 'Error during session validation' });
   }
 };
 

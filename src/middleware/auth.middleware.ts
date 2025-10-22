@@ -24,7 +24,16 @@ export const authenticateAdmin = (req: AuthRequest, res: Response, next: NextFun
   const token = authHeader.split(' ')[1];
   
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { username: string; role?: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { username: string; roles?: string[]; role?: string };
+    
+    // Check if user has admin role
+    const hasAdminRole = decoded.roles?.includes('admin') || decoded.role === 'admin';
+    
+    if (!hasAdminRole) {
+      res.status(403).json({ error: 'Forbidden: Admin access required' });
+      return;
+    }
+    
     req.user = decoded;
     next();
   } catch (error) {

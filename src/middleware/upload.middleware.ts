@@ -44,24 +44,10 @@ const upload = multer({
 const uploadRecordDocumentsMiddleware = upload.any();
 
 export const uploadRecordDocuments = (req: any, res: any, next: any) => {
-  console.log('=== UPLOAD MIDDLEWARE DEBUG ===');
-  console.log('Content-Type:', req.headers['content-type']);
-  console.log('Content-Length:', req.headers['content-length']);
-  
   uploadRecordDocumentsMiddleware(req, res, (err: any) => {
     if (err) {
       console.error('Upload middleware error:', err);
       return next(err);
-    }
-    
-    console.log('Upload middleware completed');
-    console.log('req.files after middleware:', req.files ? req.files.length : 'undefined');
-    if (req.files && req.files.length > 0) {
-      console.log('Files processed:', req.files.map((f: any) => ({
-        fieldname: f.fieldname,
-        originalname: f.originalname,
-        size: f.size
-      })));
     }
     
     next();

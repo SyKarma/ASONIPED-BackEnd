@@ -2,9 +2,11 @@ import express from 'express';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import path from 'path';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+
+// Swagger setup
+import { setupSwagger } from './config/swagger';
 
 // Database connection
 import { db } from '../src/db';
@@ -16,29 +18,28 @@ import { setupSocketIO } from './socket';
 import { authenticateToken } from '../src/middleware/auth.middleware';
 
 // Route imports
-import userRoutes from './routes/user/user.routes';
-import volunteerRoutes from './routes/volunteer/volunteer_forms.routes';
-import volunteerOptionRoutes from './routes/volunteer/volunteer_options.routes';
-import volunteerRegistrationRoutes from './routes/volunteer/volunteer_registrations.routes';
-import donationRoutes from './routes/donations/donation.routes';
-import eventsNewsRoutes from './routes/Events/eventsNews.routes';
-import attendanceRoutes from './routes/attendance/attendance.routes';
-import attendanceNewRoutes from './routes/attendance/attendance_new.routes';
-import workshopRoutes from './routes/workshop/workshop.routes';
-import enrollmentRoutes from './routes/workshop/enrollment.routes';
-import workshopEnrollmentRoutes from './routes/workshop/workshop_enrollments.routes';
-import recordRoutes from './routes/records/record.routes';
-import recordDocumentRoutes from './routes/records/document.routes';
-import donationTicketRoutes from './routes/donations/donation_ticket.routes';
-import ticketMessageRoutes from './routes/donations/ticket_message.routes';
-import anonymousTicketRoutes from './routes/donations/anonymous_ticket.routes';
-import heroSectionRoutes from './routes/landing/Hero-section.routes';
-import aboutSectionRoutes from './routes/landing/About-section.routes';
-import LandingDonacionesComponent  from './routes/landing/landing-donaciones-component.routes';
-import LandingDonacionesCard  from './routes/landing/landing-donaciones-card.routes';
-import uploadRoutes from './routes/landing/upload.routes';
-import landingVolunteerRoutes from './routes/landing/landing-volunteer.routes';
-import googleDriveRoutes from './routes/admin/googleDrive.routes';
+import userRoutes from './modules/user/routes/user.routes';
+import volunteerRoutes from './modules/volunteer/routes/volunteer_forms.routes';
+import volunteerOptionRoutes from './modules/volunteer/routes/volunteer_options.routes';
+import volunteerRegistrationRoutes from './modules/volunteer/routes/volunteer_registrations.routes';
+import donationRoutes from './modules/donations/routes/donation.routes';
+import eventsNewsRoutes from './modules/events/routes/eventsNews.routes';
+import attendanceNewRoutes from './modules/attendance/routes/attendance_new.routes';
+import workshopRoutes from './modules/workshop/routes/workshop.routes';
+import enrollmentRoutes from './modules/workshop/routes/enrollment.routes';
+import workshopEnrollmentRoutes from './modules/workshop/routes/workshop_enrollments.routes';
+import recordRoutes from './modules/records/routes/record.routes';
+import recordDocumentRoutes from './modules/records/routes/document.routes';
+import donationTicketRoutes from './modules/donations/routes/donation_ticket.routes';
+import ticketMessageRoutes from './modules/donations/routes/ticket_message.routes';
+import anonymousTicketRoutes from './modules/donations/routes/anonymous_ticket.routes';
+import heroSectionRoutes from './modules/landing/routes/Hero-section.routes';
+import aboutSectionRoutes from './modules/landing/routes/About-section.routes';
+import LandingDonacionesComponent  from './modules/landing/routes/landing-donaciones-component.routes';
+import LandingDonacionesCard  from './modules/landing/routes/landing-donaciones-card.routes';
+import uploadRoutes from './modules/landing/routes/upload.routes';
+import landingVolunteerRoutes from './modules/landing/routes/landing-volunteer.routes';
+import googleDriveRoutes from './modules/user/routes/googleDrive.routes';
 
 // Load environment variables
 dotenv.config();
@@ -47,7 +48,6 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
 // Setup Socket.io
 const io = setupSocketIO(server);
@@ -57,10 +57,14 @@ const uploadsPath = path.join(__dirname, '../../uploads');
 app.use('/uploads', express.static(uploadsPath));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: true, // Allow all origins for mobile access
   credentials: true
 }));
+
+// Setup Swagger documentation
+setupSwagger(app);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -77,57 +81,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Debug endpoint for ticket system diagnostics
-app.get('/debug/tickets', async (req, res) => {
-  try {
-    // Check if tables exist and get row counts
-    const [donationsCount] = await db.execute('SELECT COUNT(*) as count FROM donations') as [any[], any];
-    const [ticketsCount] = await db.execute('SELECT COUNT(*) as count FROM donation_tickets') as [any[], any];
-    const [messagesCount] = await db.execute('SELECT COUNT(*) as count FROM ticket_messages') as [any[], any];
-    
-    res.json({
-      donations: donationsCount[0],
-      tickets: ticketsCount[0],
-      messages: messagesCount[0],
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error in debug tickets:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
 
-// Legacy admin login endpoint (deprecated - use /users/login instead)
-app.post('/admin-login', async (req, res): Promise<void> => {
-  const { username, password } = req.body;
-  
-  try {
-    const [rows] = await db.query('SELECT * FROM admins WHERE username = ?', [username]) as [any[], any];
-    
-    if (Array.isArray(rows) && rows.length === 0) {
-      res.status(401).json({ message: 'Invalid credentials' });
-      return;
-    }
-    
-    const admin = rows[0];
-    const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
-    
-    if (!isPasswordValid) {
-      res.status(401).json({ message: 'Invalid credentials' });
-      return;
-    }
-    
-    const token = jwt.sign(
-      { username: admin.username, role: admin.role },
-      JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-    
-    res.json({ token });
-  } catch (error) {
-    res.status(500).json({ message: 'Error during login' });
-  }
-});
+
 
 // API Routes
 // Note: Individual route protection is handled within each route file
@@ -137,7 +92,6 @@ app.use('/volunteer-options', volunteerOptionRoutes);
 app.use('/volunteer-registrations', volunteerRegistrationRoutes);
 app.use('/donations', donationRoutes);
 app.use('/events-news', eventsNewsRoutes);
-app.use('/attendance', attendanceRoutes); // Legacy attendance routes
 app.use('/api/attendance', attendanceNewRoutes); // New attendance system routes
 app.use('/workshops', workshopRoutes);
 app.use('/enrollments', enrollmentRoutes);
@@ -155,14 +109,35 @@ app.use('/api/landing-donaciones-component', LandingDonacionesComponent);
 app.use('/api/landing-volunteer', landingVolunteerRoutes);
 app.use('/admin/google-drive', googleDriveRoutes);
 
-// Temporarily disabled - uncomment when needed
-// app.use('/records', recordDocumentRoutes);
 
 // Database connection and server startup
 const startServer = async (): Promise<void> => {
   try {
     await db.getConnection();
     console.log('✅ MySQL connection successful!');
+    
+    // Initialize Google Drive service on startup
+    try {
+      console.log('🚀 STARTUP: Initializing Google Drive service...');
+      const googleDriveService = require('./services/googleDriveOAuth.service');
+      console.log('🚀 STARTUP: Google Drive service module loaded');
+      
+      const initialized = await googleDriveService.initialize();
+      console.log('🚀 STARTUP: Google Drive service initialization result:', initialized);
+      
+      if (initialized) {
+        console.log('✅ STARTUP: Google Drive service initialized successfully!');
+        
+        // Check service status
+        const status = await googleDriveService.getServiceStatus();
+        console.log('📊 STARTUP: Google Drive service status:', status);
+      } else {
+        console.log('⚠️ STARTUP: Google Drive service initialization failed - manual authorization may be required');
+      }
+    } catch (error) {
+      console.log('❌ STARTUP: Google Drive service initialization error:', (error as Error).message);
+      console.log('❌ STARTUP: Error stack:', (error as Error).stack);
+    }
     
     server.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);

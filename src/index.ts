@@ -3,7 +3,6 @@ import { createServer } from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import path from 'path';
 
 // Swagger setup
 import { setupSwagger } from './config/swagger';
@@ -37,7 +36,6 @@ import heroSectionRoutes from './modules/landing/routes/Hero-section.routes';
 import aboutSectionRoutes from './modules/landing/routes/About-section.routes';
 import LandingDonacionesComponent  from './modules/landing/routes/landing-donaciones-component.routes';
 import LandingDonacionesCard  from './modules/landing/routes/landing-donaciones-card.routes';
-import uploadRoutes from './modules/landing/routes/upload.routes';
 import landingVolunteerRoutes from './modules/landing/routes/landing-volunteer.routes';
 import googleDriveRoutes from './modules/user/routes/googleDrive.routes';
 
@@ -53,8 +51,6 @@ const PORT = process.env.PORT || 3000;
 const io = setupSocketIO(server);
 
 // Middleware configuration
-const uploadsPath = path.join(__dirname, '../../uploads');
-app.use('/uploads', express.static(uploadsPath));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
@@ -102,9 +98,7 @@ app.use('/ticket-messages', ticketMessageRoutes);
 app.use('/anonymous-tickets', anonymousTicketRoutes);
 app.use('/api/hero-section', heroSectionRoutes);
 app.use('/api/about-section', aboutSectionRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/landing-donaciones-card', LandingDonacionesCard);
-app.use('/uploads', express.static('uploads'));
 app.use('/api/landing-donaciones-component', LandingDonacionesComponent);
 app.use('/api/landing-volunteer', landingVolunteerRoutes);
 app.use('/admin/google-drive', googleDriveRoutes);

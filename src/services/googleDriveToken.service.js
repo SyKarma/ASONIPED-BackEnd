@@ -53,6 +53,8 @@ class GoogleDriveTokenService {
 
   async loadTokenFromDatabase() {
     try {
+      console.log('🔍 Loading token from database...');
+      
       // Prefer the most recent token that has a non-null refresh_token
       const [rows] = await this.db.execute(
         `(
@@ -72,6 +74,13 @@ class GoogleDriveTokenService {
         )
         LIMIT 1`
       );
+      
+      console.log('📊 Database query result:', {
+        rowsFound: rows.length,
+        hasAccessToken: rows.length > 0 ? !!rows[0].access_token : false,
+        hasRefreshToken: rows.length > 0 ? !!rows[0].refresh_token : false,
+        expiryDate: rows.length > 0 ? rows[0].expiry_date : 'none'
+      });
 
       if (rows.length > 0) {
         const token = rows[0];
@@ -98,6 +107,11 @@ class GoogleDriveTokenService {
 
         this.oauth2Client.setCredentials(tokenData);
         console.log('✅ Google Drive token loaded from database');
+        console.log('🔍 Loaded token data:', {
+          hasAccessToken: !!tokenData.access_token,
+          hasRefreshToken: !!tokenData.refresh_token,
+          expiryDate: tokenData.expiry_date
+        });
         
         // Check if token needs refresh
         if (this.isTokenExpired(tokenData)) {
@@ -221,7 +235,17 @@ class GoogleDriveTokenService {
       console.log('🔄 Refreshing Google Drive token...');
       
       if (!this.oauth2Client.credentials || !this.oauth2Client.credentials.refresh_token) {
-        throw new Error('No refresh token is set.');
+        console.log('❌ No refresh token in credentials, attempting to reload from database...');
+        
+        // Try to reload the token from database
+        await this.loadTokenFromDatabase();
+        
+        // Check again after reloading
+        if (!this.oauth2Client.credentials || !this.oauth2Client.credentials.refresh_token) {
+          throw new Error('No refresh token available after reloading from database.');
+        }
+        
+        console.log('✅ Refresh token loaded from database');
       }
 
       const { credentials } = await this.oauth2Client.refreshAccessToken();
@@ -275,12 +299,22 @@ class GoogleDriveTokenService {
   async ensureValidToken() {
     try {
       if (!this.oauth2Client.credentials) {
+        console.log('🔄 No credentials found, loading from database...');
         await this.loadTokenFromDatabase();
       }
 
-      if (this.isTokenExpired(this.oauth2Client.credentials)) {
+      const isExpired = this.isTokenExpired(this.oauth2Client.credentials);
+      console.log('🔍 Token expiry check:', {
+        isExpired: isExpired,
+        expiryDate: this.oauth2Client.credentials?.expiry_date,
+        currentTime: new Date().toISOString()
+      });
+
+      if (isExpired) {
+        console.log('🔄 Token is expired, refreshing...');
         // Ensure we have a refresh_token before attempting refresh
         if (!this.oauth2Client.credentials.refresh_token) {
+          console.log('🔄 No refresh token in credentials, trying to backfill from DB...');
           // Try to backfill refresh_token from DB
           try {
             const [rtRows] = await this.db.execute(
@@ -294,11 +328,17 @@ class GoogleDriveTokenService {
                 ...this.oauth2Client.credentials,
                 refresh_token: rtRows[0].refresh_token
               });
+              console.log('✅ Refresh token backfilled from database');
             }
-          } catch (_e) {}
+          } catch (_e) {
+            console.log('❌ Failed to backfill refresh token:', _e.message);
+          }
         }
 
         await this.refreshToken();
+        console.log('✅ Token refresh completed');
+      } else {
+        console.log('✅ Token is still valid, no refresh needed');
       }
 
       return true;

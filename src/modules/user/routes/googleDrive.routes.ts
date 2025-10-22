@@ -104,7 +104,7 @@ router.get('/auth-url', async (req: any, res: any) => {
     const fs = require('fs');
     const path = require('path');
     
-    const credentialsPath = path.join(__dirname, '../../../credentials/oauth-credentials.json');
+    const credentialsPath = path.join(__dirname, '../../../../credentials/oauth-credentials.json');
     const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
     
     const oauth2Client = new google.auth.OAuth2(
@@ -171,7 +171,7 @@ router.get('/auth/callback', async (req: any, res: any) => {
     const mysql = require('mysql2/promise');
     
     // Load credentials
-    const credentialsPath = path.join(__dirname, '../../../credentials/oauth-credentials.json');
+    const credentialsPath = path.join(__dirname, '../../../../credentials/oauth-credentials.json');
     const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
     
     // Initialize OAuth2 client
@@ -316,6 +316,107 @@ router.post('/test', authenticateToken, async (req: any, res: any) => {
       error: (error as Error).message || 'Google Drive connection test failed'
     });
   }
+});
+
+// Serve Google Drive images with authentication (supports both header and cookie auth)
+router.get('/image/:fileId', async (req: any, res: any) => {
+  // Check authentication via header or cookie
+  const authHeader = req.headers.authorization;
+  const authCookie = req.cookies?.auth_token;
+  
+  // Authentication check via header or cookie
+  
+  if (!authHeader && !authCookie) {
+    return res.status(401).json({ message: 'No token provided' });
+  }
+  
+  // If we have a cookie but no header, add the header for the auth middleware
+  if (authCookie && !authHeader) {
+    req.headers.authorization = `Bearer ${authCookie}`;
+  }
+  
+  // Now use the auth middleware
+  return authenticateToken(req, res, async () => {
+  try {
+    const { fileId } = req.params;
+    
+    if (!fileId) {
+      return res.status(400).json({ error: 'File ID is required' });
+    }
+
+    // Initialize Google Drive service
+    const initialized = await googleDriveService.initialize();
+    
+    if (!initialized) {
+      return res.status(500).json({ error: 'Google Drive service not available' });
+    }
+    
+    // Ensure we have a valid token before making API calls
+    console.log('🔧 Ensuring valid Google Drive token...');
+    const tokenService = require('../../../services/googleDriveToken.service');
+    
+    // Force token refresh to ensure we have a fresh token
+    console.log('🔄 Force refreshing token to ensure fresh credentials...');
+    try {
+      await tokenService.refreshToken();
+      console.log('✅ Token force refresh completed');
+    } catch (error) {
+      console.log('⚠️ Force refresh failed, using existing token:', error.message);
+    }
+    
+    console.log('✅ Google Drive token validated');
+    
+    // Debug: Check token status before API call
+    console.log('🔍 Token status before API call:', {
+      hasCredentials: !!tokenService.oauth2Client.credentials,
+      hasAccessToken: !!tokenService.oauth2Client.credentials?.access_token,
+      hasRefreshToken: !!tokenService.oauth2Client.credentials?.refresh_token,
+      expiryDate: tokenService.oauth2Client.credentials?.expiry_date,
+      accessTokenPreview: tokenService.oauth2Client.credentials?.access_token?.substring(0, 20) + '...'
+    });
+    
+    // Get the file from Google Drive
+    const { google } = require('googleapis');
+    const drive = google.drive({ version: 'v3', auth: tokenService.oauth2Client });
+    
+    // Get file metadata first
+    const fileMetadata = await drive.files.get({
+      fileId: fileId,
+      fields: 'mimeType,name,size'
+    });
+    
+    // Check if it's an image
+    const mimeType = fileMetadata.data.mimeType;
+    if (!mimeType.startsWith('image/')) {
+      return res.status(400).json({ error: 'File is not an image' });
+    }
+    
+    // Get the file content
+    const fileResponse = await drive.files.get({
+      fileId: fileId,
+      alt: 'media'
+    }, {
+      responseType: 'stream'
+    });
+    
+    // Set appropriate headers
+    res.set({
+      'Content-Type': mimeType,
+      'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+      'Content-Disposition': `inline; filename="${fileMetadata.data.name}"`
+    });
+    
+    // Pipe the file stream to the response
+    fileResponse.data.pipe(res);
+    
+  } catch (error) {
+    console.error('Error serving Google Drive image:', error);
+    res.status(500).json({
+      error: 'Failed to serve image',
+      details: (error as Error).message
+    });
+  }
+  });
 });
 
 export default router;

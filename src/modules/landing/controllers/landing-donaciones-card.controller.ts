@@ -28,13 +28,7 @@ export const getLandingDonacionesCardById = async (req: Request, res: Response):
 
 // Crear card (con imagen opcional)
 export const createLandingDonacionesCard = async (req: Request, res: Response): Promise<void> => {
-  const { titulo_card, descripcion_card, texto_boton, color_boton } = req.body;
-  let URL_imagen = "";
-
-  // Si se subió imagen, guarda la ruta
-  if (req.file) {
-    URL_imagen = `/uploads/${req.file.filename}`;
-  }
+  const { titulo_card, descripcion_card, texto_boton, color_boton, URL_imagen } = req.body;
 
   // Validaciones básicas
   if (!titulo_card || typeof titulo_card !== "string" || titulo_card.length < 3 || titulo_card.length > 100) {
@@ -51,6 +45,12 @@ export const createLandingDonacionesCard = async (req: Request, res: Response): 
   }
   if (!color_boton || typeof color_boton !== "string" || color_boton.length > 20) {
     res.status(400).json({ error: "color_boton es requerido y máximo 20 caracteres" });
+    return;
+  }
+  
+  // Validar URL de imagen si se proporciona
+  if (URL_imagen && (typeof URL_imagen !== "string" || URL_imagen.length > 255)) {
+    res.status(400).json({ error: "URL_imagen debe ser una URL válida y máximo 255 caracteres" });
     return;
   }
 
@@ -70,14 +70,7 @@ export const createLandingDonacionesCard = async (req: Request, res: Response): 
 
 // Actualizar card (imagen opcional)
 export const updateLandingDonacionesCard = async (req: Request, res: Response): Promise<void> => {
-  const { titulo_card, descripcion_card, texto_boton, color_boton } = req.body;
-  let URL_imagen = "";
-
-  if (req.file) {
-    URL_imagen = `/uploads/${req.file.filename}`;
-  } else if (req.body.URL_imagen) {
-    URL_imagen = req.body.URL_imagen;
-  }
+  const { titulo_card, descripcion_card, texto_boton, color_boton, URL_imagen } = req.body;
 
   if (!titulo_card || typeof titulo_card !== "string" || titulo_card.length < 3 || titulo_card.length > 100) {
     res.status(400).json({ error: "titulo_card es requerido y debe tener entre 3 y 100 caracteres" });
@@ -93,6 +86,12 @@ export const updateLandingDonacionesCard = async (req: Request, res: Response): 
   }
   if (!color_boton || typeof color_boton !== "string" || color_boton.length > 20) {
     res.status(400).json({ error: "color_boton es requerido y máximo 20 caracteres" });
+    return;
+  }
+  
+  // Validar URL de imagen si se proporciona
+  if (URL_imagen && (typeof URL_imagen !== "string" || URL_imagen.length > 255)) {
+    res.status(400).json({ error: "URL_imagen debe ser una URL válida y máximo 255 caracteres" });
     return;
   }
 

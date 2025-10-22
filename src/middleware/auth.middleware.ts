@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { sessionService } from '../services/session.service';
 
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'changeme';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
 export interface AuthRequest extends Request {

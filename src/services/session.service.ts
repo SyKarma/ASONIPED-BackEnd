@@ -32,6 +32,7 @@ class SessionService {
   public isTokenValid(userId: number, token: string): boolean {
     const activeSession = this.activeSessions.get(userId);
     
+    
     if (!activeSession) {
       return false; // No active session
     }

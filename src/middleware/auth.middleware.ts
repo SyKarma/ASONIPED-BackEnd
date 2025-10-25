@@ -91,6 +91,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
+
   if (!token) {
     res.status(401).json({ message: 'No token provided' });
     return;
@@ -104,6 +105,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       id?: number 
     };
     
+    
     // Ensure userId is available for consistent access
     const userId = decoded.userId || decoded.id;
     if (!userId) {
@@ -112,7 +114,9 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     }
 
     // Check if this token is the active session for this user
-    if (!sessionService.isTokenValid(userId, token)) {
+    const isTokenValid = sessionService.isTokenValid(userId, token);
+    
+    if (!isTokenValid) {
       res.status(401).json({ 
         message: 'Session invalidated. Please log in again.',
         code: 'SESSION_INVALIDATED'

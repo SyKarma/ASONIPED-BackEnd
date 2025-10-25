@@ -18,6 +18,7 @@ import { authenticateToken } from '../src/middleware/auth.middleware';
 
 // Route imports
 import userRoutes from './modules/user/routes/user.routes';
+import userDashboardRoutes from './modules/user/routes/user_dashboard.routes';
 import volunteerRoutes from './modules/volunteer/routes/volunteer_forms.routes';
 import volunteerOptionRoutes from './modules/volunteer/routes/volunteer_options.routes';
 import volunteerRegistrationRoutes from './modules/volunteer/routes/volunteer_registrations.routes';
@@ -83,6 +84,7 @@ app.get('/health', (req, res) => {
 // API Routes
 // Note: Individual route protection is handled within each route file
 app.use('/users', userRoutes);
+app.use('/user', userDashboardRoutes); // User dashboard endpoints
 app.use('/volunteers', volunteerRoutes);
 app.use('/volunteer-options', volunteerOptionRoutes);
 app.use('/volunteer-registrations', volunteerRegistrationRoutes);

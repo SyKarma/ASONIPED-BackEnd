@@ -5,7 +5,6 @@ import { db } from '../../../db';
 export const testUserDashboard = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.userId;
-    console.log('🧪 Test endpoint called with userId:', userId);
     
     res.json({ 
       message: 'User dashboard backend is working!', 
@@ -32,7 +31,7 @@ export const getUserActivities = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Get user's workshop enrollments
+    // Get user's workshop enrollments (including cancelled)
     const workshopEnrollments = await db.execute(`
       SELECT 
         we.id,
@@ -41,7 +40,10 @@ export const getUserActivities = async (req: Request, res: Response): Promise<vo
         w.fecha as date,
         w.hora as time,
         we.status,
-        'Inscrito en taller' as description,
+        CASE 
+          WHEN we.status = 'cancelled' THEN 'Cancelado'
+          ELSE 'Inscrito en taller'
+        END as description,
         we.created_at
       FROM workshop_enrollments we
       JOIN workshops w ON we.workshop_id = w.id
@@ -50,7 +52,7 @@ export const getUserActivities = async (req: Request, res: Response): Promise<vo
       LIMIT ${workshopLimit}
     `, [userId]);
 
-    // Get user's volunteer registrations
+    // Get user's volunteer registrations (including cancelled)
     const volunteerRegistrations = await db.execute(`
       SELECT 
         vr.id,
@@ -59,11 +61,14 @@ export const getUserActivities = async (req: Request, res: Response): Promise<vo
         vo.date,
         vo.hour as time,
         vr.status,
-        'Registrado para voluntariado' as description,
+        CASE 
+          WHEN vr.status = 'cancelled' THEN 'Cancelado'
+          ELSE 'Registrado para voluntariado'
+        END as description,
         vr.created_at
       FROM volunteer_registrations vr
       JOIN volunteer_options vo ON vr.volunteer_option_id = vo.id
-      WHERE vr.user_id = ? AND vr.status = 'registered'
+      WHERE vr.user_id = ? AND (vr.status = 'registered' OR vr.status = 'cancelled')
       ORDER BY vr.created_at DESC
       LIMIT ${volunteerLimit}
     `, [userId]);
@@ -86,11 +91,30 @@ export const getUserActivities = async (req: Request, res: Response): Promise<vo
       LIMIT ${Number(Math.ceil(limit / 2))}
     `, [userId]);
 
+    // Get user's donation tickets
+    const donationTickets = await db.execute(`
+      SELECT 
+        dt.id,
+        CONCAT('Ticket de donación #', dt.id) as title,
+        'ticket' as type,
+        DATE(dt.created_at) as date,
+        TIME(dt.created_at) as time,
+        dt.status,
+        'Ticket de donación creado' as description,
+        dt.created_at
+      FROM donation_tickets dt
+      JOIN donations d ON dt.donation_id = d.id
+      WHERE dt.user_id = ?
+      ORDER BY dt.created_at DESC
+      LIMIT ${Number(Math.ceil(limit / 2))}
+    `, [userId]);
+
     // Combine and sort all activities
     const allActivities = [
       ...(workshopEnrollments[0] as any[]),
       ...(volunteerRegistrations[0] as any[]),
-      ...(attendanceRecords[0] as any[])
+      ...(attendanceRecords[0] as any[]),
+      ...(donationTickets[0] as any[])
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
      .slice(0, limit);
 
@@ -110,7 +134,6 @@ export const getUserActivities = async (req: Request, res: Response): Promise<vo
           parsedDate = new Date().toISOString().split('T')[0];
         }
       } catch (error) {
-        console.warn('Invalid date for activity:', activity.id, activity.date);
         parsedDate = new Date().toISOString().split('T')[0];
       }
 
@@ -226,7 +249,6 @@ export const getUserCalendarEvents = async (req: Request, res: Response): Promis
           parsedDate = new Date().toISOString().split('T')[0];
         }
       } catch (error) {
-        console.warn('Invalid date for event:', event.id, event.date);
         parsedDate = new Date().toISOString().split('T')[0];
       }
 

@@ -30,12 +30,12 @@ export const getEventNewsByIdController = async (req: Request, res: Response) =>
 // Create a new event/news
 export const createEventNewsController = async (req: Request, res: Response) => {
   try {
-    const { title, description, date, imageUrl, type } = req.body;
+    const { title, description, date, imageUrl, type, hour } = req.body;
     if (!title || !description || !date) {
       res.status(400).json({ message: 'Missing required fields' });
       return;
     }
-    await createEventNews({ title, description, date, imageUrl, type });
+    await createEventNews({ title, description, date, imageUrl, type, hour });
     res.status(201).json({ message: 'Event/News created' });
   } catch (err) {
     res.status(500).json({ message: 'Error creating event/news.' });
@@ -46,8 +46,8 @@ export const createEventNewsController = async (req: Request, res: Response) => 
 export const updateEventNewsController = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const { title, description, date, imageUrl, type } = req.body;
-    await updateEventNews(id, { title, description, date, imageUrl, type });
+    const { title, description, date, imageUrl, type, hour } = req.body;
+    await updateEventNews(id, { title, description, date, imageUrl, type, hour });
     res.json({ message: 'Event/News updated' });
   } catch (err) {
     res.status(500).json({ message: 'Error updating event/news.' });

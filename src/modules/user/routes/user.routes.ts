@@ -21,9 +21,15 @@ router.post('/reset-password', PasswordResetController.resetPassword);
 // Protected routes (require authentication)
 router.post('/logout', UserController.logoutUser);
 router.post('/validate-session', UserController.validateSession);
+router.get('/activities', authenticateToken, UserController.getUserActivitiesFeed);
 router.get('/profile', authenticateToken, UserController.getUserProfile);
 router.put('/profile', authenticateToken, UserController.updateUserProfile);
 router.post('/change-password', authenticateToken, UserController.changePassword);
+
+// Aliases for PerfilPage expectations
+router.get('/me', authenticateToken, UserController.getMe);
+router.put('/me', authenticateToken, UserController.updateMe);
+router.post('/me/password', authenticateToken, UserController.changeMyPassword);
 
 // Administration routes (require admin role)
 router.get('/', authenticateToken, UserController.getAllUsers);

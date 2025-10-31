@@ -103,8 +103,9 @@ export const updateVolunteerOption = async (req: Request, res: Response): Promis
       spots: parseInt(spots) || 1,
     } as any);
     
-    // Invalidate options cache
+    // Invalidate options cache (all and user-specific)
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey());
+    volunteerCache.invalidateVolunteers();
     
     res.json({ message: 'Volunteer option updated' });
   } catch (err) {

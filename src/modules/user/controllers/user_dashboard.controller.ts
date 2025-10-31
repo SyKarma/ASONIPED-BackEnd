@@ -120,15 +120,34 @@ export const getUserActivities = async (req: Request, res: Response): Promise<vo
 
     // Transform the data to match frontend interface
     const activities = allActivities.map(activity => {
-      // Safely parse date with fallback
-      let parsedDate;
+      // Safely parse date with fallback (avoid UTC shifts)
+      let parsedDate: string;
       try {
         if (activity.date) {
-          const dateObj = new Date(activity.date);
-          if (!isNaN(dateObj.getTime())) {
-            parsedDate = dateObj.toISOString().split('T')[0];
+          const d: string = activity.date;
+          if (typeof d === 'string' && d.includes('/')) {
+            const [day, month, year] = d.split('/');
+            const dd = String(parseInt(day, 10)).padStart(2, '0');
+            const mm = String(parseInt(month, 10)).padStart(2, '0');
+            const yyyy = String(parseInt(year, 10));
+            parsedDate = `${yyyy}-${mm}-${dd}`;
+          } else if (typeof d === 'string') {
+            // Handle ISO or other string dates: build YYYY-MM-DD from local parts
+            const tmp = new Date(d);
+            if (!isNaN(tmp.getTime())) {
+              const yyyy = String(tmp.getFullYear());
+              const mm = String(tmp.getMonth() + 1).padStart(2, '0');
+              const dd = String(tmp.getDate()).padStart(2, '0');
+              parsedDate = `${yyyy}-${mm}-${dd}`;
+            } else {
+              parsedDate = new Date().toISOString().split('T')[0];
+            }
           } else {
-            parsedDate = new Date().toISOString().split('T')[0];
+            const tmp = new Date(d);
+            const yyyy = String(tmp.getFullYear());
+            const mm = String(tmp.getMonth() + 1).padStart(2, '0');
+            const dd = String(tmp.getDate()).padStart(2, '0');
+            parsedDate = `${yyyy}-${mm}-${dd}`;
           }
         } else {
           parsedDate = new Date().toISOString().split('T')[0];
@@ -223,24 +242,25 @@ export const getUserCalendarEvents = async (req: Request, res: Response): Promis
 
     // Transform the data to match frontend interface
     const events = allEvents.map(event => {
-      // Safely parse date with fallback
-      let parsedDate;
+      // Safely parse date with fallback (avoid UTC shifts)
+      let parsedDate: string;
       try {
         if (event.date) {
           // Handle DD/MM/YYYY format from database
           if (event.date.includes('/')) {
             const [day, month, year] = event.date.split('/');
-            const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-            if (!isNaN(dateObj.getTime())) {
-              parsedDate = dateObj.toISOString().split('T')[0];
-            } else {
-              parsedDate = new Date().toISOString().split('T')[0];
-            }
+            const dd = String(parseInt(day, 10)).padStart(2, '0');
+            const mm = String(parseInt(month, 10)).padStart(2, '0');
+            const yyyy = String(parseInt(year, 10));
+            parsedDate = `${yyyy}-${mm}-${dd}`;
           } else {
             // Handle other date formats
-            const dateObj = new Date(event.date);
-            if (!isNaN(dateObj.getTime())) {
-              parsedDate = dateObj.toISOString().split('T')[0];
+            const tmp = new Date(event.date);
+            if (!isNaN(tmp.getTime())) {
+              const yyyy = String(tmp.getFullYear());
+              const mm = String(tmp.getMonth() + 1).padStart(2, '0');
+              const dd = String(tmp.getDate()).padStart(2, '0');
+              parsedDate = `${yyyy}-${mm}-${dd}`;
             } else {
               parsedDate = new Date().toISOString().split('T')[0];
             }

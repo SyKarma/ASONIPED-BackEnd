@@ -396,7 +396,8 @@ router.get('/image/:fileId', async (req: any, res: any) => {
       await tokenService.refreshToken();
       console.log('✅ Token force refresh completed');
     } catch (error) {
-      console.log('⚠️ Force refresh failed, using existing token:', error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log('⚠️ Force refresh failed, using existing token:', errorMessage);
     }
     
     console.log('✅ Google Drive token validated');

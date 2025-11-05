@@ -27,7 +27,7 @@ router.post('/:recordId/documents',
         const parentFolderId = '1g8DwK78x4SOXSRo2jyqQWBCMVkonH38e'; // ASONIPED-Records-Shared folder ID
         const existingFolders = await googleDriveService.listFiles(parentFolderId);
         const recordIdStr = recordId.toString();
-        const existingFolder = existingFolders.find(folder => folder.name.includes(recordIdStr));
+        const existingFolder = existingFolders.find((folder: any) => folder.name.includes(recordIdStr));
         
         if (existingFolder) {
           userFolderId = existingFolder.id;
@@ -169,7 +169,7 @@ router.post('/:recordId/document',
         const parentFolderId = '1g8DwK78x4SOXSRo2jyqQWBCMVkonH38e'; // ASONIPED-Records-Shared folder ID
         const existingFolders = await googleDriveService.listFiles(parentFolderId);
         const recordIdStr = recordId.toString();
-        const existingFolder = existingFolders.find(folder => folder.name.includes(recordIdStr));
+        const existingFolder = existingFolders.find((folder: any) => folder.name.includes(recordIdStr));
         
         if (existingFolder) {
           userFolderId = existingFolder.id;

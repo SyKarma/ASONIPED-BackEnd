@@ -342,7 +342,7 @@ router.post('/test', authenticateToken, async (req: any, res: any) => {
     res.json({
       success: true,
       message: 'Google Drive connection test successful',
-      filesCount: files.length
+      filesCount: files?.length || 0
     });
   } catch (error) {
     console.error('Error testing Google Drive connection:', error);

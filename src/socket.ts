@@ -1,4 +1,4 @@
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import { verifyToken } from './middleware/auth.middleware';
 
@@ -7,15 +7,6 @@ interface AuthenticatedSocket extends Socket {
   userRole?: string;
   isAnonymous?: boolean;
   anonymousTicketId?: string;
-}
-
-interface Socket {
-  id: string;
-  join: (room: string) => void;
-  leave: (room: string) => void;
-  emit: (event: string, data: any) => void;
-  on: (event: string, callback: Function) => void;
-  disconnect: () => void;
 }
 
 export function setupSocketIO(httpServer: HTTPServer) {
@@ -27,67 +18,69 @@ export function setupSocketIO(httpServer: HTTPServer) {
   });
 
   // Authentication middleware
-  io.use(async (socket: AuthenticatedSocket, next) => {
+  io.use(async (socket: Socket, next) => {
+    const authSocket = socket as AuthenticatedSocket;
     try {
-      const token = socket.handshake.auth.token;
+      const token = (socket.handshake as any).auth?.token;
       
       // Handle anonymous users (no token required)
       if (!token) {
-        socket.isAnonymous = true;
+        authSocket.isAnonymous = true;
         return next();
       }
 
       const decoded = await verifyToken(token);
-      socket.userId = decoded.userId;
-      socket.userRole = decoded.role;
-      socket.isAnonymous = false;
+      authSocket.userId = decoded.userId;
+      authSocket.userRole = decoded.role;
+      authSocket.isAnonymous = false;
       next();
     } catch (error) {
       // Allow anonymous connections
-      socket.isAnonymous = true;
+      authSocket.isAnonymous = true;
       next();
     }
   });
 
-  io.on('connection', (socket: AuthenticatedSocket) => {
+  io.on('connection', (socket: Socket) => {
+    const authSocket = socket as AuthenticatedSocket;
 
     // Join ticket room (for authenticated users)
-    socket.on('join_ticket_room', (ticketId: number) => {
+    authSocket.on('join_ticket_room', (ticketId: number) => {
       const roomName = `ticket_${ticketId}`;
-      socket.join(roomName);
+      authSocket.join(roomName);
     });
 
     // Join anonymous ticket room (for anonymous users)
-    socket.on('join_anonymous_ticket_room', (ticketId: string) => {
+    authSocket.on('join_anonymous_ticket_room', (ticketId: string) => {
       const roomName = `anonymous_ticket_${ticketId}`;
-      socket.join(roomName);
-      socket.anonymousTicketId = ticketId;
+      authSocket.join(roomName);
+      authSocket.anonymousTicketId = ticketId;
     });
 
     // Leave ticket room
-    socket.on('leave_ticket_room', (ticketId: number) => {
+    authSocket.on('leave_ticket_room', (ticketId: number) => {
       const roomName = `ticket_${ticketId}`;
-      socket.leave(roomName);
+      authSocket.leave(roomName);
     });
 
     // Leave anonymous ticket room
-    socket.on('leave_anonymous_ticket_room', (ticketId: string) => {
+    authSocket.on('leave_anonymous_ticket_room', (ticketId: string) => {
       const roomName = `anonymous_ticket_${ticketId}`;
-      socket.leave(roomName);
-      socket.anonymousTicketId = undefined;
+      authSocket.leave(roomName);
+      authSocket.anonymousTicketId = undefined;
     });
 
     // Handle new message for regular tickets
-    socket.on('new_message', (data: { ticketId: number; message: any }) => {
+    authSocket.on('new_message', (data: { ticketId: number; message: any }) => {
       const roomName = `ticket_${data.ticketId}`;
-      socket.to(roomName).emit('message_received', {
+      io.to(roomName).emit('message_received', {
         ...data.message,
         timestamp: new Date().toISOString()
       });
     });
 
     // Handle new message for anonymous tickets
-    socket.on('new_anonymous_message', (data: { ticketId: string; message: any }) => {
+    authSocket.on('new_anonymous_message', (data: { ticketId: string; message: any }) => {
       const roomName = `anonymous_ticket_${data.ticketId}`;
       
       // Broadcast to ALL users in the room (including sender for real-time feedback)
@@ -98,7 +91,7 @@ export function setupSocketIO(httpServer: HTTPServer) {
     });
 
     // Disconnect handling
-    socket.on('disconnect', () => {
+    authSocket.on('disconnect', () => {
       // User disconnected
     });
   });

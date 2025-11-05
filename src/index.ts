@@ -3,7 +3,6 @@ import { createServer } from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import path from 'path';
 
 // Swagger setup
 import { setupSwagger } from './config/swagger';
@@ -19,6 +18,7 @@ import { authenticateToken } from '../src/middleware/auth.middleware';
 
 // Route imports
 import userRoutes from './modules/user/routes/user.routes';
+import userDashboardRoutes from './modules/user/routes/user_dashboard.routes';
 import volunteerRoutes from './modules/volunteer/routes/volunteer_forms.routes';
 import volunteerOptionRoutes from './modules/volunteer/routes/volunteer_options.routes';
 import volunteerRegistrationRoutes from './modules/volunteer/routes/volunteer_registrations.routes';
@@ -37,7 +37,6 @@ import heroSectionRoutes from './modules/landing/routes/Hero-section.routes';
 import aboutSectionRoutes from './modules/landing/routes/About-section.routes';
 import LandingDonacionesComponent  from './modules/landing/routes/landing-donaciones-component.routes';
 import LandingDonacionesCard  from './modules/landing/routes/landing-donaciones-card.routes';
-import uploadRoutes from './modules/landing/routes/upload.routes';
 import landingVolunteerRoutes from './modules/landing/routes/landing-volunteer.routes';
 import googleDriveRoutes from './modules/user/routes/googleDrive.routes';
 
@@ -53,13 +52,13 @@ const PORT = process.env.PORT || 3000;
 const io = setupSocketIO(server);
 
 // Middleware configuration
-const uploadsPath = path.join(__dirname, '../../uploads');
-app.use('/uploads', express.static(uploadsPath));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use(cors({
-  origin: true, // Allow all origins for mobile access
+  origin: process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL 
+    ? process.env.FRONTEND_URL 
+    : true, // Use FRONTEND_URL in production, allow all in dev
   credentials: true
 }));
 
@@ -87,6 +86,7 @@ app.get('/health', (req, res) => {
 // API Routes
 // Note: Individual route protection is handled within each route file
 app.use('/users', userRoutes);
+app.use('/user', userDashboardRoutes); // User dashboard endpoints
 app.use('/volunteers', volunteerRoutes);
 app.use('/volunteer-options', volunteerOptionRoutes);
 app.use('/volunteer-registrations', volunteerRegistrationRoutes);
@@ -102,9 +102,7 @@ app.use('/ticket-messages', ticketMessageRoutes);
 app.use('/anonymous-tickets', anonymousTicketRoutes);
 app.use('/api/hero-section', heroSectionRoutes);
 app.use('/api/about-section', aboutSectionRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/landing-donaciones-card', LandingDonacionesCard);
-app.use('/uploads', express.static('uploads'));
 app.use('/api/landing-donaciones-component', LandingDonacionesComponent);
 app.use('/api/landing-volunteer', landingVolunteerRoutes);
 app.use('/admin/google-drive', googleDriveRoutes);
@@ -141,7 +139,8 @@ const startServer = async (): Promise<void> => {
     
     server.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`📊 Health check available at: http://localhost:${PORT}/health`);
+      const serverUrl = process.env.BACKEND_URL || `http://localhost:${PORT}`;
+      console.log(`📊 Health check available at: ${serverUrl}/health`);
       console.log(`🔌 Socket.io server is ready for real-time chat`);
     });
   } catch (error) {

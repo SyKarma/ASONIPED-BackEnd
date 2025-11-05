@@ -123,6 +123,52 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Recent activities for user (includes Record module events)
+export const getUserActivitiesFeed = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.userId;
+    const limit = parseInt((req.query.limit as string) || '5');
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Pull latest records where user is creator or current owner
+    const [rows] = await db.query(
+      `SELECT r.id, r.record_number, r.status, r.created_at, r.updated_at
+       FROM records r
+       WHERE r.created_by = ? OR (r.handed_over_to_user = TRUE AND r.handed_over_to = ?)
+       ORDER BY COALESCE(r.updated_at, r.created_at) DESC
+       LIMIT ?`,
+      [userId, userId, limit]
+    ) as [any[], any];
+
+    const activities = (rows || []).map((r) => {
+      const ts = (r.updated_at || r.created_at || new Date());
+      const d = new Date(ts);
+      const isoDate = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+      const normalizedStatus: 'pending' | 'approved' | 'completed' | 'rejected' | 'open' | 'closed' | 'archived' | 'enrolled' | 'registered' | 'cancelled' =
+        r.status === 'active' ? 'completed' :
+        r.status === 'approved' ? 'approved' :
+        r.status === 'rejected' ? 'rejected' : 'pending';
+      return {
+        id: String(r.id),
+        title: r.record_number ? `Expediente ${r.record_number}` : `Expediente #${r.id}`,
+        type: 'record' as const,
+        date: isoDate.slice(0,10),
+        time: isoDate.slice(11,19),
+        status: normalizedStatus,
+        description: r.updated_at ? 'Expediente actualizado' : 'Expediente creado'
+      };
+    });
+
+    res.json(activities);
+  } catch (err) {
+    console.error('Error getting user activities feed:', err);
+    res.status(500).json({ error: 'Error getting activities' });
+  }
+};
+
 // User login
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -311,6 +357,92 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
   } catch (err) {
     console.error('Error getting user profile:', err);
     res.status(500).json({ error: 'Error getting user profile' });
+  }
+};
+
+// Me endpoints (thin wrappers with simpler payloads for frontend PerfilPage)
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+    const user = await UserModel.getUserById(userId);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({ id: user.id, username: user.username, name: user.full_name, email: user.email, phone: user.phone });
+  } catch (err) {
+    res.status(500).json({ error: 'Error getting current user' });
+  }
+};
+
+export const updateMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+    const { name, email, phone } = req.body as { name?: string; email?: string; phone?: string | null };
+
+    const updateData: any = {};
+    if (name && name.trim()) updateData.full_name = name.trim();
+    if (email !== undefined) updateData.email = email || null;
+    if (phone !== undefined) {
+      // basic validation: allow empty/null or 8-20 digits (adjust to your locale)
+      if (phone && !/^\+?[0-9\s-]{8,20}$/.test(phone)) {
+        res.status(400).json({ error: 'Invalid phone format' });
+        return;
+      }
+      updateData.phone = phone || null;
+    }
+
+    // If email provided, ensure uniqueness
+    if (email) {
+      const existing = await UserModel.getUserByEmail(email);
+      if (existing && existing.id !== userId) {
+        res.status(400).json({ error: 'Email is already in use' });
+        return;
+      }
+    }
+
+    await UserModel.updateUser(userId, updateData);
+    res.json({ message: 'Profile updated' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error updating profile' });
+  }
+};
+
+export const changeMyPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+    const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: 'Current password and new password are required' });
+      return;
+    }
+    const user = await UserModel.getUserById(userId);
+    if (!user || !user.password_hash) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const ok = await UserModel.verifyPassword(currentPassword, user.password_hash);
+    if (!ok) {
+      res.status(400).json({ error: 'Current password is incorrect' });
+      return;
+    }
+    const newHash = await UserModel.hashPassword(newPassword);
+    await UserModel.updateUser(userId, { password_hash: newHash });
+    res.json({ message: 'Password changed' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error changing password' });
   }
 };
 

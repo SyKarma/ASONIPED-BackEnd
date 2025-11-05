@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
 import * as VolunteerOptionModel from '../models/volunteer_options.model';
 import { volunteerCache } from '../../../services/volunteer-cache.service';
-import fs from 'fs';
-import path from 'path';
 import { AuthRequest } from '../../../middleware/auth.middleware';
 
 // Get all volunteer options
@@ -53,26 +51,12 @@ export const getVolunteerOptions = async (req: Request, res: Response): Promise<
 // Add a new volunteer option
 export const addVolunteerOption = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('Creating volunteer option with data:', req.body);
-    const { title, description, date, location, skills, tools, hour, spots } = req.body as any;
+    const { title, description, date, location, skills, tools, hour, spots, imageUrl } = req.body as any;
 
     // Validate required fields
     if (!title || !description || !date || !location || !hour || !spots) {
-      console.error('Missing required fields:', { title, description, date, location, hour, spots });
       res.status(400).json({ error: 'Missing required fields: title, description, date, location, hour, spots' });
       return;
-    }
-
-    // Save image if provided
-    let imageUrl: string | undefined;
-    const file = (req as any).file as Express.Multer.File | undefined;
-    if (file && file.buffer) {
-      const uploadDir = path.join(__dirname, '../../..', 'uploads', 'volunteer-options');
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      const filename = `${Date.now()}-${file.originalname}`.replace(/\s+/g, '_');
-      const fullPath = path.join(uploadDir, filename);
-      fs.writeFileSync(fullPath, file.buffer);
-      imageUrl = `/uploads/volunteer-options/${filename}`;
     }
 
     const volunteerOptionData = {
@@ -87,16 +71,12 @@ export const addVolunteerOption = async (req: Request, res: Response): Promise<v
       spots: parseInt(spots) || 1,
     };
 
-    console.log('Attempting to create volunteer option:', volunteerOptionData);
-
     await VolunteerOptionModel.createVolunteerOption(volunteerOptionData as any);
     
     // Clear all volunteer options cache (both general and user-specific)
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey());
     // Clear all volunteer-related cache to ensure fresh data
     volunteerCache.invalidateVolunteers();
-    
-    console.log('Volunteer option created successfully, cache cleared');
     
     res.status(201).json({ message: 'Volunteer option created' });
   } catch (err) {
@@ -109,23 +89,12 @@ export const addVolunteerOption = async (req: Request, res: Response): Promise<v
 export const updateVolunteerOption = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { title, description, date, location, skills, tools, hour, spots } = req.body as any;
-
-    let imageUrl: string | undefined;
-    const file = (req as any).file as Express.Multer.File | undefined;
-    if (file && file.buffer) {
-      const uploadDir = path.join(__dirname, '../../..', 'uploads', 'volunteer-options');
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      const filename = `${Date.now()}-${file.originalname}`.replace(/\s+/g, '_');
-      const fullPath = path.join(uploadDir, filename);
-      fs.writeFileSync(fullPath, file.buffer);
-      imageUrl = `/uploads/volunteer-options/${filename}`;
-    }
+    const { title, description, date, location, skills, tools, hour, spots, imageUrl } = req.body as any;
 
     await VolunteerOptionModel.updateVolunteerOption(id, {
       title,
       description,
-      imageUrl: imageUrl ?? (req.body.imageUrl as string),
+      imageUrl: imageUrl || '',
       date,
       location,
       skills,
@@ -134,8 +103,9 @@ export const updateVolunteerOption = async (req: Request, res: Response): Promis
       spots: parseInt(spots) || 1,
     } as any);
     
-    // Invalidate options cache
+    // Invalidate options cache (all and user-specific)
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey());
+    volunteerCache.invalidateVolunteers();
     
     res.json({ message: 'Volunteer option updated' });
   } catch (err) {
@@ -159,7 +129,7 @@ export const deleteVolunteerOption = async (req: Request, res: Response): Promis
   }
 };
 
-// Accept a volunteer option proposal with optional local file upload
+// Accept a volunteer option proposal
 export const addVolunteerProposal = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { title, proposal, location, date, tools, hour, spots } = req.body as any;
@@ -167,20 +137,6 @@ export const addVolunteerProposal = async (req: AuthRequest, res: Response): Pro
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
-    }
-
-    let savedPath: string | undefined;
-    const uploadDir = path.join(__dirname, '../../..', 'uploads', 'volunteer-proposals');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const file = (req as any).file as Express.Multer.File | undefined;
-    if (file && file.buffer) {
-      const filename = `${Date.now()}-${file.originalname}`.replace(/\s+/g, '_');
-      const fullPath = path.join(uploadDir, filename);
-      fs.writeFileSync(fullPath, file.buffer);
-      savedPath = `/uploads/volunteer-proposals/${filename}`;
     }
 
     await VolunteerOptionModel.createVolunteerOptionProposal({
@@ -192,7 +148,7 @@ export const addVolunteerProposal = async (req: AuthRequest, res: Response): Pro
       tools,
       hour,
       spots: parseInt(spots) || 1,
-      document_path: savedPath,
+      document_path: undefined, // No file upload needed
     });
 
     res.status(201).json({ message: 'Proposal submitted' });

@@ -7,11 +7,10 @@ uploads/records/temp/
 uploads/records/temp/*
 node_modules/
 package-lock.json
-package.json
+# package.json should NOT be ignored - it's required for deployment
+# package.json
 node_modules/.package-lock.json
 node_modules/brace-expansion/index.js
 node_modules/brace-expansion/package.json
 /credentials
-/src/services/googleDriveOAuth.service.js
-
 .env

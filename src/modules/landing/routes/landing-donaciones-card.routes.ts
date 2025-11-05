@@ -1,17 +1,15 @@
 import { Router } from 'express';
-import multer from 'multer';
 import {getAllLandingDonacionesCards,getLandingDonacionesCardById,createLandingDonacionesCard,updateLandingDonacionesCard,deleteLandingDonacionesCard} from '../controllers/landing-donaciones-card.controller';
 import { authenticateAdmin } from '../../../middleware/auth.middleware';
+import { uploadSingleDocument, handleUploadError } from '../../../middleware/upload.middleware';
 
 const router = Router();
-const upload = multer({ dest: 'uploads/' });
 
 router.get('/', getAllLandingDonacionesCards);
 router.get('/:id', getLandingDonacionesCardById);
 
-
-router.post('/', upload.single('imagen'), authenticateAdmin, createLandingDonacionesCard);
-router.put('/:id', upload.single('imagen'), authenticateAdmin, updateLandingDonacionesCard);
+router.post('/', authenticateAdmin, uploadSingleDocument, handleUploadError, createLandingDonacionesCard);
+router.put('/:id', authenticateAdmin, uploadSingleDocument, handleUploadError, updateLandingDonacionesCard);
 router.delete('/:id', authenticateAdmin, deleteLandingDonacionesCard);
 
 export default router;

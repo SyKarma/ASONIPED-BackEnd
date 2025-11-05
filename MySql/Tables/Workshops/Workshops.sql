@@ -6,8 +6,8 @@ CREATE TABLE workshops (
     imagen VARCHAR(255),
     materials TEXT,
     aprender TEXT,
-    fecha DATE,
-    hora TIME,
+    fecha VARCHAR(50) NOT NULL,  -- Changed to VARCHAR format (DD/MM/YYYY)
+    hora VARCHAR(10) NOT NULL,    -- Changed to VARCHAR format (HH:MM)
     capacidad INT
 );
 

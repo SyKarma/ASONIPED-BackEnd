@@ -6,6 +6,8 @@ export interface EventNews {
   description: string;
   date: string;
   imageUrl?: string;
+  hour?: string;
+  type?: 'evento' | 'noticia';
 }
 
 // Get all events/news
@@ -24,16 +26,16 @@ export const getEventNewsById = async (id: number): Promise<EventNews | null> =>
 // Create a new event/news
 export const createEventNews = async (event: Omit<EventNews, 'id'>): Promise<void> => {
   await db.query(
-    `INSERT INTO events_news (title, description, date, imageUrl) VALUES (?, ?, ?, ?)` ,
-    [event.title, event.description, event.date, event.imageUrl]
+    `INSERT INTO events_news (title, description, date, imageUrl, hour, type) VALUES (?, ?, ?, ?, ?, ?)` ,
+    [event.title, event.description, event.date, event.imageUrl, event.hour || null, event.type || 'evento']
   );
 };
 
 // Update an event/news
 export const updateEventNews = async (id: number, event: Omit<EventNews, 'id'>): Promise<void> => {
   await db.query(
-    `UPDATE events_news SET title=?, description=?, date=?, imageUrl=? WHERE id=?`,
-    [event.title, event.description, event.date, event.imageUrl, id]
+    `UPDATE events_news SET title=?, description=?, date=?, imageUrl=?, hour=?, type=? WHERE id=?`,
+    [event.title, event.description, event.date, event.imageUrl, event.hour || null, event.type || 'evento', id]
   );
 };
 

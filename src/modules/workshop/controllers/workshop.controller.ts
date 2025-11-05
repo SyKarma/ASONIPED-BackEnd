@@ -29,8 +29,8 @@ function validateWorkshop(data: Partial<Workshop>) {
   if (typeof data.capacidad !== 'number' || isNaN(data.capacidad) || data.capacidad <= 0) {
     errors.push('La capacidad es obligatoria y debe ser un número mayor a 0.');
   }
-  if (!data.imagen || typeof data.imagen !== 'string' || data.imagen.trim().length === 0) {
-    errors.push('La URL de la imagen es obligatoria y debe ser un texto.');
+  if (data.imagen && typeof data.imagen !== 'string') {
+    errors.push('La URL de la imagen debe ser un texto válido.');
   }
   return errors;
 }

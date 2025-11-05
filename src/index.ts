@@ -8,13 +8,13 @@ import cookieParser from 'cookie-parser';
 import { setupSwagger } from './config/swagger';
 
 // Database connection
-import { db } from '../src/db';
+import { db } from './db';
 
 // Socket.io setup
 import { setupSocketIO } from './socket';
 
 // Middleware
-import { authenticateToken } from '../src/middleware/auth.middleware';
+import { authenticateToken } from './middleware/auth.middleware';
 
 // Route imports
 import userRoutes from './modules/user/routes/user.routes';

@@ -476,7 +476,7 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
           
           // Check if folder already exists in the parent folder
           const existingFolders = await googleDriveService.listFiles(parentFolderId);
-          const existingFolder = existingFolders.find(folder => folder.name === folderName);
+          const existingFolder = existingFolders.find((folder: any) => folder.name === folderName);
           
           if (existingFolder) {
             userFolderId = existingFolder.id;

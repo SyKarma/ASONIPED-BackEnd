@@ -297,9 +297,17 @@ router.delete('/:recordId/documents/:fileName',
   async (req: any, res: any) => {
     try {
       const { recordId, fileName } = req.params;
+      
+      // Note: Files are stored in Google Drive, not locally
+      // This path is for legacy files or as fallback
+      // In Railway/production, files should only exist in Google Drive
       const filePath = path.join(__dirname, `../../uploads/records/${recordId}/${fileName}`);
       
+      // Try to delete local file if it exists (may not exist in production)
       const deleted = deleteFile(filePath);
+      
+      // Also try to delete from Google Drive if file ID is available
+      // This would require querying the database for the google_drive_id
       
       if (deleted) {
 

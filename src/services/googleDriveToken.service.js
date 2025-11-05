@@ -13,14 +13,37 @@ class GoogleDriveTokenService {
 
   async initialize() {
     try {
-      // Load credentials
-      const credentialsPath = path.join(__dirname, '../../credentials/oauth-credentials.json');
+      // Load credentials from environment variables or file
+      let credentials;
       
-      if (!fs.existsSync(credentialsPath)) {
-        throw new Error('Credentials file not found. Please ensure oauth-credentials.json exists in the credentials directory.');
+      // Support both GOOGLE_CLIENT_ID and GOOGLE_DRIVE_CLIENT_ID (legacy)
+      const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_DRIVE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+      
+      if (clientId && clientSecret) {
+        // Use environment variables (production/Railway)
+        credentials = {
+          web: {
+            client_id: clientId,
+            client_secret: clientSecret
+          }
+        };
+        console.log('✅ Using Google Drive credentials from environment variables');
+      } else {
+        // Fallback to file (local development)
+        const credentialsPath = path.join(__dirname, '../../credentials/oauth-credentials.json');
+        
+        if (!fs.existsSync(credentialsPath)) {
+          console.warn('⚠️ Google Drive credentials file not found. Google Drive features will be disabled.');
+          console.warn('⚠️ Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables for production.');
+          return false;
+        }
+
+        credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+        console.log('✅ Using Google Drive credentials from file');
       }
 
-      this.credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+      this.credentials = credentials;
       
       // Initialize database connection
       this.db = mysql.createPool({
@@ -33,11 +56,16 @@ class GoogleDriveTokenService {
         queueLimit: 0
       });
 
+      // Get redirect URI from environment or use default
+      const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
+                         (process.env.BACKEND_URL ? process.env.BACKEND_URL + '/admin/google-drive/auth/callback' : null) ||
+                         'http://localhost:3000/admin/google-drive/auth/callback';
+
       // Initialize OAuth2 client
       this.oauth2Client = new google.auth.OAuth2(
         this.credentials.web.client_id,
         this.credentials.web.client_secret,
-        'http://localhost:3000/admin/google-drive/auth/callback'
+        redirectUri
       );
 
       // Load token from database

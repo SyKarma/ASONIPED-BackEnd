@@ -170,15 +170,50 @@ router.get('/auth/callback', async (req: any, res: any) => {
     const path = require('path');
     const mysql = require('mysql2/promise');
     
-    // Load credentials
-    const credentialsPath = path.join(__dirname, '../../../../credentials/oauth-credentials.json');
-    const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    // Load credentials from environment variables or file
+    let credentials;
+    
+    // Support both GOOGLE_CLIENT_ID and GOOGLE_DRIVE_CLIENT_ID (legacy)
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_DRIVE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+    
+    if (clientId && clientSecret) {
+      // Use environment variables (production/Railway)
+      credentials = {
+        web: {
+          client_id: clientId,
+          client_secret: clientSecret
+        }
+      };
+    } else {
+      // Fallback to file (local development)
+      const credentialsPath = path.join(__dirname, '../../../../credentials/oauth-credentials.json');
+      
+      if (!fs.existsSync(credentialsPath)) {
+        return res.status(500).send(`
+          <html>
+            <body>
+              <h1>Configuration Error</h1>
+              <p>Google Drive credentials not configured.</p>
+              <p>Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.</p>
+            </body>
+          </html>
+        `);
+      }
+      
+      credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    }
+    
+    // Get redirect URI from environment or use default
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
+                       (process.env.BACKEND_URL ? process.env.BACKEND_URL + '/admin/google-drive/auth/callback' : null) ||
+                       'http://localhost:3000/admin/google-drive/auth/callback';
     
     // Initialize OAuth2 client
     const oauth2Client = new google.auth.OAuth2(
       credentials.web.client_id,
       credentials.web.client_secret,
-      'http://localhost:3000/admin/google-drive/auth/callback'
+      redirectUri
     );
     
     // Get token from code

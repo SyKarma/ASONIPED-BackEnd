@@ -56,7 +56,9 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use(cors({
-  origin: true, // Allow all origins for mobile access
+  origin: process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL 
+    ? process.env.FRONTEND_URL 
+    : true, // Use FRONTEND_URL in production, allow all in dev
   credentials: true
 }));
 
@@ -137,7 +139,8 @@ const startServer = async (): Promise<void> => {
     
     server.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`📊 Health check available at: http://localhost:${PORT}/health`);
+      const serverUrl = process.env.BACKEND_URL || `http://localhost:${PORT}`;
+      console.log(`📊 Health check available at: ${serverUrl}/health`);
       console.log(`🔌 Socket.io server is ready for real-time chat`);
     });
   } catch (error) {

@@ -23,11 +23,17 @@ export class EmailService {
 
   constructor() {
     // Create transporter with Gmail SMTP configuration
+    // Support both SMTP_* (legacy) and EMAIL_* (new) variable names
+    const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER || '';
+    const smtpPass = process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || '';
+    
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true' || false,
       auth: {
-        user: process.env.SMTP_USER || '',
-        pass: process.env.SMTP_PASS || ''
+        user: smtpUser,
+        pass: smtpPass
       }
     });
   }
@@ -39,9 +45,8 @@ export class EmailService {
 
   // Generate reset URL
   generateResetUrl(token: string, baseUrl?: string): string {
-    // Use provided baseUrl or default to localhost
-    // The frontend will automatically detect and use the correct IP
-    const url = baseUrl || 'http://localhost:5173';
+    // Use provided baseUrl, FRONTEND_URL env var, or default to localhost for development
+    const url = baseUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
     return `${url}/reset-password?token=${token}`;
   }
 
@@ -52,9 +57,8 @@ export class EmailService {
 
   // Generate verification URL
   generateVerificationUrl(token: string, baseUrl?: string): string {
-    // Use provided baseUrl or default to localhost
-    // The frontend will automatically detect and use the correct IP
-    const url = baseUrl || 'http://localhost:5173';
+    // Use provided baseUrl, FRONTEND_URL env var, or default to localhost for development
+    const url = baseUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
     return `${url}/verify-email?token=${token}`;
   }
 
@@ -62,7 +66,7 @@ export class EmailService {
   async sendPasswordResetEmail(emailData: PasswordResetEmail): Promise<boolean> {
     try {
       const mailOptions = {
-        from: `"ASONIPED" <${process.env.SMTP_USER}>`,
+        from: `"ASONIPED" <${process.env.EMAIL_USER || process.env.SMTP_USER || ''}>`,
         to: emailData.to,
         subject: 'Recuperación de Contraseña - ASONIPED',
         html: this.getPasswordResetHTMLTemplate(emailData),
@@ -82,7 +86,7 @@ export class EmailService {
   async sendEmailVerification(emailData: EmailVerificationEmail): Promise<boolean> {
     try {
       const mailOptions = {
-        from: `"ASONIPED" <${process.env.SMTP_USER}>`,
+        from: `"ASONIPED" <${process.env.EMAIL_USER || process.env.SMTP_USER || ''}>`,
         to: emailData.to,
         subject: 'Verificación de Email - ASONIPED',
         html: this.getEmailVerificationHTMLTemplate(emailData),
@@ -532,9 +536,9 @@ export class EmailService {
   // Get service status
   getServiceStatus(): { configured: boolean; host: string; user: string } {
     return {
-      configured: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
-      host: 'gmail',
-      user: process.env.SMTP_USER || ''
+      configured: !!((process.env.EMAIL_USER || process.env.SMTP_USER) && (process.env.EMAIL_PASSWORD || process.env.SMTP_PASS)),
+      host: process.env.EMAIL_HOST || process.env.SMTP_HOST || 'gmail',
+      user: process.env.EMAIL_USER || process.env.SMTP_USER || ''
     };
   }
 }

@@ -139,13 +139,13 @@ export const createAdminDirectRecord = async (req: Request, res: Response): Prom
         }
         
         // Check if folder already exists in the parent folder
-        const existingFolders = await googleDriveService.listFiles(parentFolderId);
-        const existingFolder = existingFolders.find((folder: any) => folder.name === folderName);
+        const existingFolders = await googleDriveService.listFiles(parentFolderId as any);
+        const existingFolder = existingFolders?.find((folder: any) => folder.name === folderName);
         
         if (existingFolder) {
           userFolderId = existingFolder.id;
         } else {
-          const folderResult = await googleDriveService.createFolder(folderName, parentFolderId);
+          const folderResult = await googleDriveService.createFolder(folderName, parentFolderId as any);
           userFolderId = folderResult.id;
         }
       }
@@ -475,13 +475,13 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
           
           
           // Check if folder already exists in the parent folder
-          const existingFolders = await googleDriveService.listFiles(parentFolderId);
-          const existingFolder = existingFolders.find((folder: any) => folder.name === folderName);
+          const existingFolders = await googleDriveService.listFiles(parentFolderId as any);
+          const existingFolder = existingFolders?.find((folder: any) => folder.name === folderName);
           
           if (existingFolder) {
             userFolderId = existingFolder.id;
           } else {
-            const folderResult = await googleDriveService.createFolder(folderName, parentFolderId);
+            const folderResult = await googleDriveService.createFolder(folderName, parentFolderId as any);
             userFolderId = folderResult.id;
           }
         }

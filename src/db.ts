@@ -4,11 +4,13 @@ import dotenv from 'dotenv';
 // Load environment variables (dotenv only loads .env file, Railway variables are already in process.env)
 dotenv.config();
 
-// Debug: Log all DB_* environment variables
+// Debug: Log all environment variables
 console.log('🔍 Environment Variables Debug:');
+console.log('  Total env vars:', Object.keys(process.env).length);
 console.log('  All DB_* vars:', Object.keys(process.env).filter(key => key.startsWith('DB_')).map(key => `${key}=${key === 'DB_PASSWORD' ? '***' : process.env[key]}`).join(', ') || 'NONE FOUND');
 console.log('  NODE_ENV:', process.env.NODE_ENV);
 console.log('  PORT:', process.env.PORT);
+console.log('  All env var names:', Object.keys(process.env).sort().join(', '));
 
 // Log database configuration (without password)
 const dbConfig = {

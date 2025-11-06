@@ -55,12 +55,91 @@ const io = setupSocketIO(server);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
+
+// CORS configuration - Allow multiple origins in production
+const allowedOrigins: string[] = [];
+if (process.env.FRONTEND_URL) {
+  try {
+    const frontendUrl = process.env.FRONTEND_URL.trim();
+    allowedOrigins.push(frontendUrl);
+    
+    // Add common Vercel patterns (only for non-localhost URLs)
+    if (!frontendUrl.includes('localhost')) {
+      try {
+        const url = new URL(frontendUrl);
+        // Add www variant if not already present
+        if (!url.hostname.startsWith('www.')) {
+          allowedOrigins.push(`https://www.${url.hostname}`);
+        }
+      } catch (e) {
+        // If URL parsing fails, just use the original value
+        console.warn('⚠️ Could not parse FRONTEND_URL:', frontendUrl);
+      }
+    }
+  } catch (e) {
+    console.error('❌ Error processing FRONTEND_URL:', e);
+  }
+}
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL 
-    ? process.env.FRONTEND_URL 
-    : true, // Use FRONTEND_URL in production, allow all in dev
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // In production, check against allowed origins
+    if (allowedOrigins.length === 0) {
+      // If no FRONTEND_URL is set, allow all (fallback)
+      console.warn('⚠️ WARNING: FRONTEND_URL not set, allowing all origins');
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.some(allowed => {
+      // Exact match
+      if (origin === allowed) return true;
+      // Check if origin starts with allowed (for subdomains)
+      if (origin.startsWith(allowed)) return true;
+      // Check if it's the same domain (http vs https)
+      try {
+        const originUrl = new URL(origin);
+        const allowedUrl = new URL(allowed);
+        if (originUrl.hostname === allowedUrl.hostname) return true;
+      } catch (e) {
+        // Ignore URL parsing errors
+      }
+      return false;
+    })) {
+      return callback(null, true);
+    }
+    
+    // Log blocked origin for debugging
+    console.warn(`🚫 CORS blocked origin: ${origin}`);
+    console.warn(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+    
+    // Reject the request
+    callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Log CORS configuration on startup
+console.log('🌐 CORS Configuration:');
+console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || 'not set'}`);
+if (allowedOrigins.length > 0) {
+  console.log(`   ✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+} else {
+  console.log(`   ⚠️ No FRONTEND_URL set - allowing all origins`);
+}
 
 // Setup Swagger documentation
 setupSwagger(app);

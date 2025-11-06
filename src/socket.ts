@@ -10,10 +10,27 @@ interface AuthenticatedSocket extends Socket {
 }
 
 export function setupSocketIO(httpServer: HTTPServer) {
+  // Build allowed origins for Socket.io
+  const allowedOrigins: string[] = [];
+  if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+    // Add common variations
+    const url = new URL(process.env.FRONTEND_URL);
+    if (!url.hostname.startsWith('www.')) {
+      allowedOrigins.push(`https://www.${url.hostname}`);
+    }
+  }
+  
+  // In development, allow localhost
+  if (process.env.NODE_ENV !== 'production') {
+    allowedOrigins.push("http://localhost:5173", "http://localhost:3000");
+  }
+  
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.FRONTEND_URL || "http://localhost:5173",
-      methods: ["GET", "POST"]
+      origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+      methods: ["GET", "POST"],
+      credentials: true
     }
   });
 

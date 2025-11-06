@@ -45,15 +45,40 @@ class GoogleDriveTokenService {
 
       this.credentials = credentials;
       
-      // Initialize database connection
+      // Initialize database connection with Railway port detection
+      let dbHost = process.env.DB_HOST || 'localhost';
+      let dbPort = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
+      
+      // If DB_HOST is a public Railway URL (proxy.rlwy.net), use port 10170
+      if (dbHost && dbHost.includes('proxy.rlwy.net')) {
+        // Try to get port from MYSQL_PUBLIC_URL if available
+        if (process.env.MYSQL_PUBLIC_URL) {
+          try {
+            const publicUrl = process.env.MYSQL_PUBLIC_URL;
+            const match = publicUrl.match(/mysql:\/\/[^@]+@[^:]+:(\d+)\//);
+            if (match) {
+              dbPort = Number(match[1]);
+            } else {
+              dbPort = 10170; // Default Railway public MySQL port
+            }
+          } catch (e) {
+            dbPort = 10170; // Default Railway public MySQL port
+          }
+        } else {
+          dbPort = 10170; // Default Railway public MySQL port
+        }
+      }
+      
       this.db = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
+        host: dbHost,
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'asonipeddigitaltest',
+        port: dbPort,
         waitForConnections: true,
         connectionLimit: 10,
-        queueLimit: 0
+        queueLimit: 0,
+        connectTimeout: 10000
       });
 
       // Get redirect URI from environment or use default

@@ -17,13 +17,13 @@ console.log('  All env var names:', Object.keys(process.env).sort().join(', '));
 let dbHost = process.env.DB_HOST;
 let dbPort = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
 
-// If MYSQL_URL is available (from Railway MySQL service), parse it for internal connection
-if (process.env.MYSQL_URL && !process.env.MYSQL_URL.includes('proxy.rlwy.net')) {
+// Check if MYSQL_URL is available (from Railway MySQL service)
+if (process.env.MYSQL_URL) {
   try {
     const mysqlUrl = process.env.MYSQL_URL;
     // Parse mysql://user:pass@host:port/database
     const match = mysqlUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
-    if (match) {
+    if (match && match[3].includes('railway.internal')) {
       dbHost = match[3]; // host
       dbPort = Number(match[4]); // port
       console.log('🔗 Using Railway private MySQL URL for internal connection');
@@ -31,6 +31,14 @@ if (process.env.MYSQL_URL && !process.env.MYSQL_URL.includes('proxy.rlwy.net')) 
   } catch (e) {
     console.log('⚠️ Could not parse MYSQL_URL, using DB_HOST');
   }
+}
+
+// If DB_HOST is a public Railway URL (proxy.rlwy.net), change to private URL
+if (dbHost && dbHost.includes('proxy.rlwy.net')) {
+  console.log('⚠️ DB_HOST is using public URL, switching to private Railway URL');
+  dbHost = 'mysql.railway.internal';
+  dbPort = 3306;
+  console.log('🔗 Changed to private Railway MySQL URL: mysql.railway.internal:3306');
 }
 
 // Log database configuration (without password)

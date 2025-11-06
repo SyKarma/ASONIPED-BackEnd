@@ -33,12 +33,26 @@ if (process.env.MYSQL_URL) {
   }
 }
 
-// If DB_HOST is a public Railway URL (proxy.rlwy.net), change to private URL
+// If DB_HOST is a public Railway URL (proxy.rlwy.net), use it with the correct port
+// Railway's public MySQL URL uses a different port (usually 10170+)
 if (dbHost && dbHost.includes('proxy.rlwy.net')) {
-  console.log('⚠️ DB_HOST is using public URL, switching to private Railway URL');
-  dbHost = 'mysql.railway.internal';
-  dbPort = 3306;
-  console.log('🔗 Changed to private Railway MySQL URL: mysql.railway.internal:3306');
+  // Try to get port from MYSQL_PUBLIC_URL if available
+  if (process.env.MYSQL_PUBLIC_URL) {
+    try {
+      const publicUrl = process.env.MYSQL_PUBLIC_URL;
+      const match = publicUrl.match(/mysql:\/\/[^@]+@[^:]+:(\d+)\//);
+      if (match) {
+        dbPort = Number(match[1]);
+        console.log(`🔗 Using Railway public MySQL URL: ${dbHost}:${dbPort}`);
+      } else {
+        console.log('⚠️ Using public URL with default port');
+      }
+    } catch (e) {
+      console.log('⚠️ Could not parse MYSQL_PUBLIC_URL, using default port');
+    }
+  } else {
+    console.log('⚠️ MYSQL_PUBLIC_URL not available, using public URL with default port');
+  }
 }
 
 // Log database configuration (without password)

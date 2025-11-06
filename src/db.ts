@@ -12,13 +12,34 @@ console.log('  NODE_ENV:', process.env.NODE_ENV);
 console.log('  PORT:', process.env.PORT);
 console.log('  All env var names:', Object.keys(process.env).sort().join(', '));
 
+// Use private Railway URL if available (for internal connections)
+// MYSQL_URL format: mysql://user:pass@host:port/database
+let dbHost = process.env.DB_HOST;
+let dbPort = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
+
+// If MYSQL_URL is available (from Railway MySQL service), parse it for internal connection
+if (process.env.MYSQL_URL && !process.env.MYSQL_URL.includes('proxy.rlwy.net')) {
+  try {
+    const mysqlUrl = process.env.MYSQL_URL;
+    // Parse mysql://user:pass@host:port/database
+    const match = mysqlUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+    if (match) {
+      dbHost = match[3]; // host
+      dbPort = Number(match[4]); // port
+      console.log('🔗 Using Railway private MySQL URL for internal connection');
+    }
+  } catch (e) {
+    console.log('⚠️ Could not parse MYSQL_URL, using DB_HOST');
+  }
+}
+
 // Log database configuration (without password)
 const dbConfig = {
-  host: process.env.DB_HOST,
+  host: dbHost,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD ? '***' : undefined,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+  port: dbPort,
 };
 
 console.log('🔍 Database Configuration:');
@@ -47,12 +68,13 @@ if (!process.env.DB_NAME) {
 }
 
 export const db = mysql.createPool({
-  host: process.env.DB_HOST,
+  host: dbHost,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+  port: dbPort,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  connectTimeout: 10000, // 10 seconds timeout
 });

@@ -16,7 +16,27 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: process.env.BACKEND_URL || process.env.API_URL || process.env.RAILWAY_STATIC_URL || 'http://localhost:3000',
+        url: (() => {
+          if (process.env.BACKEND_URL) {
+            return process.env.BACKEND_URL.startsWith('http') 
+              ? process.env.BACKEND_URL 
+              : `https://${process.env.BACKEND_URL}`;
+          }
+          if (process.env.API_URL) {
+            return process.env.API_URL.startsWith('http') 
+              ? process.env.API_URL 
+              : `https://${process.env.API_URL}`;
+          }
+          if (process.env.RAILWAY_STATIC_URL) {
+            return process.env.RAILWAY_STATIC_URL.startsWith('http') 
+              ? process.env.RAILWAY_STATIC_URL 
+              : `https://${process.env.RAILWAY_STATIC_URL}`;
+          }
+          if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+            return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+          }
+          return 'http://localhost:3000';
+        })(),
         description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
       }
     ],
@@ -8284,24 +8304,35 @@ export const setupSwagger = (app: Express) => {
     res.send(specs);
   });
 
-  // Get the public URL - prioritize BACKEND_URL, then try to construct from request
+  // Get the public URL - prioritize BACKEND_URL, then Railway auto-generated variables
   const getSwaggerUrl = () => {
+    // User-defined BACKEND_URL (highest priority)
     if (process.env.BACKEND_URL) {
-      return process.env.BACKEND_URL;
+      return process.env.BACKEND_URL.startsWith('http') 
+        ? process.env.BACKEND_URL 
+        : `https://${process.env.BACKEND_URL}`;
     }
+    // User-defined API_URL
     if (process.env.API_URL) {
-      return process.env.API_URL;
+      return process.env.API_URL.startsWith('http') 
+        ? process.env.API_URL 
+        : `https://${process.env.API_URL}`;
     }
+    // Railway auto-generated variables
     if (process.env.RAILWAY_STATIC_URL) {
-      return process.env.RAILWAY_STATIC_URL;
+      return process.env.RAILWAY_STATIC_URL.startsWith('http') 
+        ? process.env.RAILWAY_STATIC_URL 
+        : `https://${process.env.RAILWAY_STATIC_URL}`;
     }
-    // Don't use RAILWAY_PRIVATE_DOMAIN as it's internal-only
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    }
+    // Fallback to localhost
     return 'http://localhost:3000';
   };
 
   const swaggerUrl = getSwaggerUrl();
   console.log(`📚 Swagger documentation available at: ${swaggerUrl}/api-docs`);
-  console.log(`💡 To use public URL, set BACKEND_URL environment variable in Railway`);
 };
 
 export default specs;

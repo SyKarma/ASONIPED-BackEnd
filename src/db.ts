@@ -45,13 +45,19 @@ if (dbHost && dbHost.includes('proxy.rlwy.net')) {
         dbPort = Number(match[1]);
         console.log(`🔗 Using Railway public MySQL URL: ${dbHost}:${dbPort}`);
       } else {
-        console.log('⚠️ Using public URL with default port');
+        // Default to 10170 for Railway public MySQL
+        dbPort = 10170;
+        console.log(`⚠️ Could not parse MYSQL_PUBLIC_URL, using default Railway port: ${dbPort}`);
       }
     } catch (e) {
-      console.log('⚠️ Could not parse MYSQL_PUBLIC_URL, using default port');
+      // Default to 10170 for Railway public MySQL
+      dbPort = 10170;
+      console.log(`⚠️ Could not parse MYSQL_PUBLIC_URL, using default Railway port: ${dbPort}`);
     }
   } else {
-    console.log('⚠️ MYSQL_PUBLIC_URL not available, using public URL with default port');
+    // Default to 10170 for Railway public MySQL when MYSQL_PUBLIC_URL is not available
+    dbPort = 10170;
+    console.log(`⚠️ MYSQL_PUBLIC_URL not available, using Railway default port: ${dbPort}`);
   }
 }
 

@@ -16,8 +16,8 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: process.env.API_URL || 'http://localhost:3000',
-        description: 'Development server'
+        url: process.env.API_URL || process.env.BACKEND_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000'),
+        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
       }
     ],
     components: {
@@ -8284,7 +8284,8 @@ export const setupSwagger = (app: Express) => {
     res.send(specs);
   });
 
-  console.log(`📚 Swagger documentation available at: ${process.env.API_URL || 'http://localhost:3000'}/api-docs`);
+  const swaggerUrl = process.env.API_URL || process.env.BACKEND_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
+  console.log(`📚 Swagger documentation available at: ${swaggerUrl}/api-docs`);
 };
 
 export default specs;

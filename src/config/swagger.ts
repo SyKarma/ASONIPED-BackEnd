@@ -16,7 +16,7 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: process.env.API_URL || process.env.BACKEND_URL || (process.env.RAILWAY_STATIC_URL ? process.env.RAILWAY_STATIC_URL : (process.env.RAILWAY_PRIVATE_DOMAIN ? `https://${process.env.RAILWAY_PRIVATE_DOMAIN}` : 'http://localhost:3000')),
+        url: process.env.BACKEND_URL || process.env.API_URL || process.env.RAILWAY_STATIC_URL || 'http://localhost:3000',
         description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
       }
     ],
@@ -8284,8 +8284,24 @@ export const setupSwagger = (app: Express) => {
     res.send(specs);
   });
 
-  const swaggerUrl = process.env.API_URL || process.env.BACKEND_URL || (process.env.RAILWAY_STATIC_URL ? process.env.RAILWAY_STATIC_URL : (process.env.RAILWAY_PRIVATE_DOMAIN ? `https://${process.env.RAILWAY_PRIVATE_DOMAIN}` : 'http://localhost:3000'));
+  // Get the public URL - prioritize BACKEND_URL, then try to construct from request
+  const getSwaggerUrl = () => {
+    if (process.env.BACKEND_URL) {
+      return process.env.BACKEND_URL;
+    }
+    if (process.env.API_URL) {
+      return process.env.API_URL;
+    }
+    if (process.env.RAILWAY_STATIC_URL) {
+      return process.env.RAILWAY_STATIC_URL;
+    }
+    // Don't use RAILWAY_PRIVATE_DOMAIN as it's internal-only
+    return 'http://localhost:3000';
+  };
+
+  const swaggerUrl = getSwaggerUrl();
   console.log(`📚 Swagger documentation available at: ${swaggerUrl}/api-docs`);
+  console.log(`💡 To use public URL, set BACKEND_URL environment variable in Railway`);
 };
 
 export default specs;

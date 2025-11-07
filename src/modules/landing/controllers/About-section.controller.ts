@@ -12,7 +12,14 @@ export const getAllAboutSections = async (req: Request, res: Response): Promise<
     const sections = await AboutSectionModel.getAll();
     res.json(sections);
   } catch (err) {
-    res.status(500).json({ error: 'Error fetching AboutSections' });
+    console.error('❌ Error fetching AboutSections:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    console.error('❌ Error stack:', errorStack);
+    res.status(500).json({ 
+      error: 'Error fetching AboutSections',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    });
   }
 };
 

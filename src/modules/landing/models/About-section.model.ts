@@ -12,8 +12,14 @@ export interface AboutSection {
 
 export const AboutSectionModel = {
   async getAll(): Promise<AboutSection[]> {
-    const [rows] = await db.query('SELECT * FROM AboutSection ORDER BY id DESC');
-    return rows as AboutSection[];
+    try {
+      const [rows] = await db.query('SELECT * FROM AboutSection ORDER BY id DESC');
+      return rows as AboutSection[];
+    } catch (error) {
+      console.error('❌ AboutSectionModel.getAll() error:', error);
+      console.error('❌ SQL Query: SELECT * FROM AboutSection ORDER BY id DESC');
+      throw error;
+    }
   },
 
   async getById(id: number): Promise<AboutSection | null> {

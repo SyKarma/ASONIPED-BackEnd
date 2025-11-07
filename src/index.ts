@@ -60,7 +60,11 @@ app.use(cookieParser());
 const allowedOrigins: string[] = [];
 if (process.env.FRONTEND_URL) {
   try {
-    const frontendUrl = process.env.FRONTEND_URL.trim();
+    // Remove trailing slash and trim
+    let frontendUrl = process.env.FRONTEND_URL.trim();
+    if (frontendUrl.endsWith('/')) {
+      frontendUrl = frontendUrl.slice(0, -1);
+    }
     allowedOrigins.push(frontendUrl);
     
     // Add common Vercel patterns (only for non-localhost URLs)
@@ -134,7 +138,8 @@ app.use(cors({
 // Log CORS configuration on startup
 console.log('🌐 CORS Configuration:');
 console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || 'not set'}`);
+const rawFrontendUrl = process.env.FRONTEND_URL || 'not set';
+console.log(`   FRONTEND_URL (raw): ${rawFrontendUrl}`);
 if (allowedOrigins.length > 0) {
   console.log(`   ✅ Allowed origins: ${allowedOrigins.join(', ')}`);
 } else {

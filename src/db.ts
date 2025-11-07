@@ -9,18 +9,46 @@ dotenv.config();
 let dbHost = process.env.DB_HOST;
 let dbPort = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
 
-// Check if MYSQL_URL is available (from Railway MySQL service)
-if (process.env.MYSQL_URL) {
+// Check if MYSQL_PUBLIC_URL is available first (more reliable than internal URL)
+// MYSQL_PUBLIC_URL format: mysql://user:pass@host:port/database
+if (process.env.MYSQL_PUBLIC_URL) {
   try {
-    const mysqlUrl = process.env.MYSQL_URL;
-    // Parse mysql://user:pass@host:port/database
-    const match = mysqlUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
-    if (match && match[3].includes('railway.internal')) {
-      dbHost = match[3]; // host
+    const publicUrl = process.env.MYSQL_PUBLIC_URL.trim();
+    const match = publicUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+    if (match) {
+      dbHost = match[3]; // host (e.g., turntable.proxy.rlwy.net)
       dbPort = Number(match[4]); // port
+      console.log('✅ Using MYSQL_PUBLIC_URL for database connection');
     }
   } catch (e) {
-    // Fallback to DB_HOST if MYSQL_URL parsing fails
+    console.warn('⚠️ Could not parse MYSQL_PUBLIC_URL:', e);
+  }
+}
+
+// Check if MYSQL_URL is available (from Railway MySQL service)
+// Only use if MYSQL_PUBLIC_URL is not available
+if (!dbHost && process.env.MYSQL_URL) {
+  try {
+    const mysqlUrl = process.env.MYSQL_URL.trim();
+    // Parse mysql://user:pass@host:port/database
+    const match = mysqlUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+    if (match) {
+      const hostname = match[3];
+      // Prefer public URLs over internal ones
+      if (hostname.includes('proxy.rlwy.net') || hostname.includes('turntable.proxy.rlwy.net')) {
+        dbHost = hostname;
+        dbPort = Number(match[4]);
+        console.log('✅ Using MYSQL_URL (public) for database connection');
+      } else if (hostname.includes('railway.internal')) {
+        // Only use internal URL if public URL is not available
+        console.warn('⚠️ MYSQL_URL uses railway.internal - this may not be available');
+        console.warn('⚠️ Consider using MYSQL_PUBLIC_URL instead');
+        dbHost = hostname;
+        dbPort = Number(match[4]);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Could not parse MYSQL_URL');
   }
 }
 
@@ -64,6 +92,16 @@ if (!process.env.DB_PASSWORD) {
 
 if (!process.env.DB_NAME) {
   console.error('⚠️ WARNING: DB_NAME is not set!');
+}
+
+// Log database configuration (without password)
+console.log('🗄️ Database Configuration:');
+console.log(`   Host: ${dbHost || 'not set (will use DB_HOST)'}`);
+console.log(`   Port: ${dbPort || 'not set (will use DB_PORT or 3306)'}`);
+console.log(`   Database: ${process.env.DB_NAME || 'not set'}`);
+console.log(`   User: ${process.env.DB_USER || 'not set'}`);
+if (dbHost && dbHost.includes('railway.internal')) {
+  console.warn('   ⚠️ Using railway.internal - if connection fails, ensure MYSQL_PUBLIC_URL is set');
 }
 
 export const db = mysql.createPool({

@@ -152,19 +152,28 @@ if (allowedOrigins.length > 0) {
 }
 
 // Handle OPTIONS requests explicitly (CORS preflight) - BEFORE other routes
-app.options('*', cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (process.env.NODE_ENV !== 'production') return callback(null, true);
-    if (allowedOrigins.length === 0) return callback(null, true);
-    if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
-      return callback(null, true);
+// Use middleware instead of app.options('*') to avoid path-to-regexp error
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    // Apply CORS headers for OPTIONS requests
+    const origin = req.headers.origin;
+    if (!origin || process.env.NODE_ENV !== 'production') {
+      res.header('Access-Control-Allow-Origin', origin || '*');
+    } else if (allowedOrigins.length === 0) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      res.header('Access-Control-Allow-Origin', origin); // Allow for debugging
     }
-    return callback(null, true); // Allow for now to debug
-  },
-  credentials: true
-}), (req, res) => {
-  res.sendStatus(200);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400'); // 24 hours
+    res.sendStatus(200);
+    return;
+  }
+  next();
 });
 
 // Setup Swagger documentation

@@ -88,23 +88,53 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     // Get user with roles
     const userWithRoles = await UserModel.getUserWithRoles(userId);
 
-    // Send verification email
+    // Send verification email (REQUIRED - registration fails if email cannot be sent)
+    let emailSent = false;
     try {
+      // Check if email service is configured
+      const emailStatus = emailService.instance.getServiceStatus();
+      if (!emailStatus.configured) {
+        console.error('❌ Email service not configured. Cannot send verification email.');
+        throw new Error('Email service is not configured. Please configure SMTP_USER and SMTP_PASS environment variables.');
+      }
+      
       const verificationToken = emailService.instance.generateVerificationToken();
       const verificationUrl = emailService.instance.generateVerificationUrl(verificationToken);
       
       // Store verification token in database
       await UserModel.storeVerificationToken(userId, verificationToken);
       
-      await emailService.instance.sendEmailVerification({
+      console.log(`📧 Sending verification email to ${email} for user ${username}...`);
+      emailSent = await emailService.instance.sendEmailVerification({
         to: email,
         username: username,
         verificationToken: verificationToken,
         verificationUrl: verificationUrl
       });
+      
+      if (!emailSent) {
+        throw new Error('Failed to send verification email');
+      }
+      
+      console.log(`✅ Verification email sent successfully to ${email}`);
     } catch (emailError) {
-      console.error('Error sending verification email:', emailError);
-      // Don't fail registration if email fails, just log it
+      const errorMessage = emailError instanceof Error ? emailError.message : String(emailError);
+      console.error('❌ CRITICAL: Error sending verification email:', errorMessage);
+      
+      // Delete the user since we cannot send verification email
+      try {
+        await UserModel.deleteUser(userId);
+        console.log(`⚠️ User ${username} deleted due to email service failure`);
+      } catch (deleteError) {
+        console.error('❌ Error deleting user after email failure:', deleteError);
+      }
+      
+      // Return error to user
+      res.status(500).json({ 
+        error: 'Error sending verification email. Please contact support.',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      });
+      return;
     }
 
     res.status(201).json({
@@ -764,20 +794,47 @@ export const resendVerificationEmail = async (req: Request, res: Response): Prom
       // Store new verification token
       await UserModel.storeVerificationToken(user.id!, verificationToken);
       
-      await emailService.instance.sendEmailVerification({
+      const emailSent = await emailService.instance.sendEmailVerification({
         to: email,
         username: user.username!,
         verificationToken: verificationToken,
         verificationUrl: verificationUrl
       });
 
+      if (!emailSent) {
+        throw new Error('Failed to send verification email');
+      }
+
       res.json({ message: 'Verification email sent successfully' });
     } catch (emailError) {
-      console.error('Error sending verification email:', emailError);
-      res.status(500).json({ error: 'Error sending verification email' });
+      const errorMessage = emailError instanceof Error ? emailError.message : String(emailError);
+      console.error('❌ Error sending verification email:', errorMessage);
+      res.status(500).json({ 
+        error: 'Error sending verification email',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      });
     }
   } catch (err) {
     console.error('Error resending verification email:', err);
     res.status(500).json({ error: 'Error resending verification email' });
+  }
+};
+
+// Test email service endpoint (for debugging)
+export const testEmailService = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const emailStatus = emailService.instance.getServiceStatus();
+    const testResult = await emailService.instance.testConnection();
+    
+    res.json({
+      status: emailStatus,
+      connection: testResult,
+      message: testResult.success 
+        ? 'Email service is working correctly' 
+        : 'Email service connection failed'
+    });
+  } catch (err) {
+    console.error('Error testing email service:', err);
+    res.status(500).json({ error: 'Error testing email service' });
   }
 }; 

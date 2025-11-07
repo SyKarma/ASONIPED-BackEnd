@@ -25,17 +25,53 @@ export class EmailService {
     // Create transporter with Gmail SMTP configuration
     // Support both SMTP_* (legacy) and EMAIL_* (new) variable names
     const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER || '';
-    const smtpPass = process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || '';
+    let smtpPass = process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || '';
+    const smtpHost = process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587');
+    const smtpSecure = process.env.SMTP_SECURE === 'true' || false;
+    
+    // Store original password for logging
+    const originalPassword = smtpPass;
+    
+    // Remove spaces from password (common issue with Gmail App Passwords)
+    if (smtpPass) {
+      smtpPass = smtpPass.trim().replace(/\s+/g, '');
+    }
+    
+    // Log email service configuration (without password)
+    console.log('📧 Email Service Configuration:');
+    console.log(`   Host: ${smtpHost}`);
+    console.log(`   Port: ${smtpPort}`);
+    console.log(`   Secure: ${smtpSecure}`);
+    console.log(`   User: ${smtpUser || 'NOT SET'}`);
+    console.log(`   Password: ${smtpPass ? `***SET*** (${smtpPass.length} chars)` : 'NOT SET'}`);
+    
+    if (!smtpUser || !smtpPass) {
+      console.error('❌ Email service configuration incomplete: SMTP_USER and SMTP_PASS must be set');
+    } else if (originalPassword && originalPassword.trim() !== smtpPass) {
+      console.warn('⚠️ WARNING: Password contained spaces and was cleaned.');
+      console.warn('⚠️ Gmail App Passwords should not have spaces. If authentication fails, ensure SMTP_PASS is a 16-character App Password without spaces.');
+    } else if (smtpPass.length !== 16 && smtpHost.includes('gmail.com')) {
+      console.warn('⚠️ WARNING: Gmail App Passwords are typically 16 characters long.');
+      console.warn('⚠️ If authentication fails, verify that SMTP_PASS is a Gmail App Password, not your regular password.');
+    }
     
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true' || false,
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure, // true for 465, false for other ports
       auth: {
         user: smtpUser,
-        pass: smtpPass
+        pass: smtpPass // Password already cleaned (spaces removed)
+      },
+      // Gmail specific options
+      tls: {
+        rejectUnauthorized: false // Allow self-signed certificates (may be needed for some SMTP servers)
       }
     });
+    
+    // Store the cleaned password for reference (but don't expose it)
+    (this.transporter as any)._smtpPass = smtpPass;
   }
 
   // Generate secure reset token
@@ -85,20 +121,55 @@ export class EmailService {
   // Send email verification
   async sendEmailVerification(emailData: EmailVerificationEmail): Promise<boolean> {
     try {
+      // Verify connection before sending
+      console.log('🔍 Verifying email service connection...');
+      await this.transporter.verify();
+      console.log('✅ Email service connection verified');
+      
+      const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER || '';
+      if (!fromEmail) {
+        throw new Error('SMTP_USER or EMAIL_USER not configured');
+      }
+      
       const mailOptions = {
-        from: `"ASONIPED" <${process.env.EMAIL_USER || process.env.SMTP_USER || ''}>`,
+        from: `"ASONIPED" <${fromEmail}>`,
         to: emailData.to,
         subject: 'Verificación de Email - ASONIPED',
         html: this.getEmailVerificationHTMLTemplate(emailData),
         text: this.getEmailVerificationTextTemplate(emailData)
       };
 
+      console.log(`📧 Attempting to send verification email to ${emailData.to}...`);
       const result = await this.transporter.sendMail(mailOptions);
       console.log('✅ Email verification sent successfully:', result.messageId);
+      console.log(`   Response: ${result.response}`);
       return true;
     } catch (error) {
-      console.error('❌ Error sending email verification:', error);
-      return false;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = (error as any)?.code;
+      const errorCommand = (error as any)?.command;
+      
+      console.error('❌ Error sending email verification:', errorMessage);
+      console.error('   Error code:', errorCode);
+      console.error('   Error command:', errorCommand);
+      
+      // Log more details for common Gmail errors
+      if (errorCode === 'EAUTH') {
+        console.error('❌ Authentication failed. This usually means:');
+        console.error('   1. The password is incorrect');
+        console.error('   2. Gmail requires an "App Password" instead of your regular password');
+        console.error('   3. 2-Step Verification must be enabled in your Google account');
+        console.error('   Solution: Generate an App Password at https://myaccount.google.com/apppasswords');
+      } else if (errorCode === 'ECONNECTION' || errorCode === 'ETIMEDOUT') {
+        console.error('❌ Connection failed. This usually means:');
+        console.error('   1. The SMTP server is unreachable');
+        console.error('   2. The port is incorrect (587 for TLS, 465 for SSL)');
+        console.error('   3. Firewall or network issues');
+      } else if (errorCode === 'EENVELOPE') {
+        console.error('❌ Envelope error. Check the recipient email address.');
+      }
+      
+      throw error; // Re-throw to allow caller to handle
     }
   }
 
@@ -522,14 +593,37 @@ export class EmailService {
   }
 
   // Test email service connection
-  async testConnection(): Promise<boolean> {
+  async testConnection(): Promise<{ success: boolean; error?: string; details?: any }> {
     try {
+      console.log('🔍 Testing email service connection...');
       await this.transporter.verify();
       console.log('✅ Email service connection successful');
-      return true;
+      return { success: true };
     } catch (error) {
-      console.error('❌ Email service connection failed:', error);
-      return false;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = (error as any)?.code;
+      console.error('❌ Email service connection failed:', errorMessage);
+      console.error('   Error code:', errorCode);
+      
+      let details: any = {
+        code: errorCode,
+        message: errorMessage
+      };
+      
+      if (errorCode === 'EAUTH') {
+        details = {
+          ...details,
+          solution: 'Gmail requires an App Password. Generate one at https://myaccount.google.com/apppasswords',
+          steps: [
+            'Enable 2-Step Verification in your Google account',
+            'Go to https://myaccount.google.com/apppasswords',
+            'Generate a new app password for "Mail"',
+            'Use that password (16 characters) in SMTP_PASS instead of your regular password'
+          ]
+        };
+      }
+      
+      return { success: false, error: errorMessage, details };
     }
   }
 

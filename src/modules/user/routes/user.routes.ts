@@ -13,6 +13,7 @@ router.post('/login', UserController.loginUser);
 router.post('/verify-email', UserController.verifyEmail);
 router.post('/resend-verification', UserController.resendVerificationEmail);
 router.get('/statistics', StatisticsController.getStatistics);
+router.get('/test-email', UserController.testEmailService); // Email service diagnostic endpoint
 
 // Password recovery routes (no authentication required)
 router.post('/forgot-password', forgotPasswordRateLimit, PasswordResetController.forgotPassword);

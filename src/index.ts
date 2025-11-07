@@ -261,6 +261,33 @@ const startServer = async (): Promise<void> => {
       }
     });
     
+    // Initialize email service and test connection
+    setImmediate(async () => {
+      try {
+        console.log('📧 STARTUP: Initializing email service...');
+        const { emailService } = require('./services/email.service');
+        const emailStatus = emailService.instance.getServiceStatus();
+        
+        if (emailStatus.configured) {
+          console.log('✅ STARTUP: Email service is configured');
+          const testResult = await emailService.instance.testConnection();
+          if (testResult.success) {
+            console.log('✅ STARTUP: Email service connection test successful');
+          } else {
+            console.error('❌ STARTUP: Email service connection test failed:', testResult.error);
+            if (testResult.details) {
+              console.error('   Details:', JSON.stringify(testResult.details, null, 2));
+            }
+          }
+        } else {
+          console.warn('⚠️ STARTUP: Email service is NOT configured');
+          console.warn('⚠️ STARTUP: User registration will fail if email service is not configured');
+        }
+      } catch (error) {
+        console.error('❌ STARTUP: Email service initialization error:', (error as Error).message);
+      }
+    });
+    
     // Initialize Google Drive service in background (non-blocking)
     // This allows the server to start responding immediately
     setImmediate(async () => {

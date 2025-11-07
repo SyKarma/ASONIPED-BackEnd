@@ -45,29 +45,72 @@ class GoogleDriveTokenService {
 
       this.credentials = credentials;
       
-      // Initialize database connection with Railway port detection
+      // Initialize database connection - use same logic as main db.ts
       let dbHost = process.env.DB_HOST || 'localhost';
-      let dbPort = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
+      let dbPort = process.env.DB_PORT ? Number(process.env.DB_PORT.trim()) : 3306;
       
-      // If DB_HOST is a public Railway URL (proxy.rlwy.net), use port 10170
-      if (dbHost && dbHost.includes('proxy.rlwy.net')) {
-        // Try to get port from MYSQL_PUBLIC_URL if available
-        if (process.env.MYSQL_PUBLIC_URL) {
-          try {
-            const publicUrl = process.env.MYSQL_PUBLIC_URL;
-            const match = publicUrl.match(/mysql:\/\/[^@]+@[^:]+:(\d+)\//);
-            if (match) {
-              dbPort = Number(match[1]);
-            } else {
-              dbPort = 10170; // Default Railway public MySQL port
-            }
-          } catch (e) {
-            dbPort = 10170; // Default Railway public MySQL port
+      // Check if MYSQL_PUBLIC_URL is available first (more reliable than internal URL)
+      if (process.env.MYSQL_PUBLIC_URL) {
+        try {
+          const publicUrl = process.env.MYSQL_PUBLIC_URL.trim();
+          const match = publicUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+          if (match) {
+            dbHost = match[3]; // host (e.g., turntable.proxy.rlwy.net)
+            dbPort = Number(match[4]); // port
+            console.log('✅ Google Drive: Using MYSQL_PUBLIC_URL for database connection');
           }
-        } else {
-          dbPort = 10170; // Default Railway public MySQL port
+        } catch (e) {
+          console.warn('⚠️ Google Drive: Could not parse MYSQL_PUBLIC_URL:', e);
         }
       }
+      
+      // Check if MYSQL_URL is available (only if MYSQL_PUBLIC_URL didn't set dbHost)
+      // If dbHost is still the original DB_HOST value, try MYSQL_URL
+      const originalDbHost = process.env.DB_HOST || 'localhost';
+      if (dbHost === originalDbHost && process.env.MYSQL_URL) {
+        try {
+          const mysqlUrl = process.env.MYSQL_URL.trim();
+          const match = mysqlUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+          if (match) {
+            const hostname = match[3];
+            // Prefer public URLs over internal ones
+            if (hostname.includes('proxy.rlwy.net') || hostname.includes('turntable.proxy.rlwy.net')) {
+              dbHost = hostname;
+              dbPort = Number(match[4]);
+              console.log('✅ Google Drive: Using MYSQL_URL (public) for database connection');
+            } else if (hostname.includes('railway.internal')) {
+              // Only use internal URL if public URL is not available
+              console.warn('⚠️ Google Drive: MYSQL_URL uses railway.internal - this may not be available');
+              console.warn('⚠️ Google Drive: Consider using MYSQL_PUBLIC_URL instead');
+              dbHost = hostname;
+              dbPort = Number(match[4]);
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Google Drive: Could not parse MYSQL_URL');
+        }
+      }
+      
+      // If DB_HOST is still railway.internal, try to use MYSQL_PUBLIC_URL as fallback
+      if (dbHost && dbHost.includes('railway.internal') && !dbHost.includes('proxy.rlwy.net')) {
+        if (process.env.MYSQL_PUBLIC_URL) {
+          try {
+            const publicUrl = process.env.MYSQL_PUBLIC_URL.trim();
+            const match = publicUrl.match(/mysql:\/\/[^@]+@([^:]+):(\d+)\//);
+            if (match) {
+              console.log('🔄 Google Drive: Switching from internal to public MySQL URL');
+              dbHost = match[1];
+              dbPort = Number(match[2]);
+            }
+          } catch (e) {
+            console.warn('⚠️ Google Drive: Could not parse MYSQL_PUBLIC_URL for fallback');
+          }
+        }
+      }
+      
+      console.log('🗄️ Google Drive Database Configuration:');
+      console.log(`   Host: ${dbHost}`);
+      console.log(`   Port: ${dbPort}`);
       
       this.db = mysql.createPool({
         host: dbHost,

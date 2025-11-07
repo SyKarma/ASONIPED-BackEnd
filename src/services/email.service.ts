@@ -41,8 +41,8 @@ export class EmailService {
     // Log email service configuration (without password)
     console.log('📧 Email Service Configuration:');
     console.log(`   Host: ${smtpHost}`);
-    console.log(`   Port: ${smtpPort}`);
-    console.log(`   Secure: ${smtpSecure}`);
+    console.log(`   Port: ${smtpPort}${smtpHost.includes('gmail.com') && smtpPort === 587 ? ' (will use 465 for Railway compatibility)' : ''}`);
+    console.log(`   Secure: ${smtpSecure}${smtpHost.includes('gmail.com') && smtpPort === 587 ? ' (will use true for Railway compatibility)' : ''}`);
     console.log(`   User: ${smtpUser || 'NOT SET'}`);
     console.log(`   Password: ${smtpPass ? `***SET*** (${smtpPass.length} chars)` : 'NOT SET'}`);
     
@@ -56,18 +56,37 @@ export class EmailService {
       console.warn('⚠️ If authentication fails, verify that SMTP_PASS is a Gmail App Password, not your regular password.');
     }
     
+    // For Railway and cloud environments, prefer port 465 with SSL
+    // Railway often blocks port 587, but 465 usually works
+    const actualPort = smtpHost.includes('gmail.com') && smtpPort === 587 ? 465 : smtpPort;
+    const actualSecure = smtpHost.includes('gmail.com') && smtpPort === 587 ? true : smtpSecure;
+    
+    if (smtpHost.includes('gmail.com') && smtpPort === 587) {
+      console.warn('⚠️ Using port 465 with SSL instead of 587 (TLS) for better Railway compatibility');
+    }
+    
     this.transporter = nodemailer.createTransport({
       host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure, // true for 465, false for other ports
+      port: actualPort,
+      secure: actualSecure, // true for 465 (SSL), false for 587 (TLS/STARTTLS)
       auth: {
         user: smtpUser,
         pass: smtpPass // Password already cleaned (spaces removed)
       },
+      // Connection timeout options (important for Railway and cloud environments)
+      connectionTimeout: 10000, // 10 seconds (reduced from 60 for faster failure detection)
+      greetingTimeout: 10000, // 10 seconds
+      socketTimeout: 30000, // 30 seconds
+      // Enable STARTTLS for port 587 (if not using SSL on 465)
+      requireTLS: !actualSecure && actualPort === 587,
       // Gmail specific options
       tls: {
-        rejectUnauthorized: false // Allow self-signed certificates (may be needed for some SMTP servers)
-      }
+        rejectUnauthorized: false, // Allow self-signed certificates (may be needed for some SMTP servers)
+        minVersion: 'TLSv1.2' // Use modern TLS version
+      },
+      // Debug options (can be enabled for troubleshooting)
+      debug: process.env.NODE_ENV === 'development',
+      logger: process.env.NODE_ENV === 'development'
     });
     
     // Store the cleaned password for reference (but don't expose it)
@@ -120,57 +139,95 @@ export class EmailService {
 
   // Send email verification
   async sendEmailVerification(emailData: EmailVerificationEmail): Promise<boolean> {
-    try {
-      // Verify connection before sending
-      console.log('🔍 Verifying email service connection...');
-      await this.transporter.verify();
-      console.log('✅ Email service connection verified');
-      
-      const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER || '';
-      if (!fromEmail) {
-        throw new Error('SMTP_USER or EMAIL_USER not configured');
-      }
-      
-      const mailOptions = {
-        from: `"ASONIPED" <${fromEmail}>`,
-        to: emailData.to,
-        subject: 'Verificación de Email - ASONIPED',
-        html: this.getEmailVerificationHTMLTemplate(emailData),
-        text: this.getEmailVerificationTextTemplate(emailData)
-      };
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 1) {
+          console.log(`🔄 Retry attempt ${attempt}/${maxRetries}...`);
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+        
+        // Skip verification on retries to speed up the process
+        if (attempt === 1) {
+          console.log('🔍 Verifying email service connection...');
+          try {
+            await this.transporter.verify();
+            console.log('✅ Email service connection verified');
+          } catch (verifyError) {
+            console.warn('⚠️ Connection verification failed, but attempting to send anyway...');
+            // Continue even if verification fails - sometimes sending works even if verify doesn't
+          }
+        }
+        
+        const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER || '';
+        if (!fromEmail) {
+          throw new Error('SMTP_USER or EMAIL_USER not configured');
+        }
+        
+        const mailOptions = {
+          from: `"ASONIPED" <${fromEmail}>`,
+          to: emailData.to,
+          subject: 'Verificación de Email - ASONIPED',
+          html: this.getEmailVerificationHTMLTemplate(emailData),
+          text: this.getEmailVerificationTextTemplate(emailData)
+        };
 
-      console.log(`📧 Attempting to send verification email to ${emailData.to}...`);
-      const result = await this.transporter.sendMail(mailOptions);
-      console.log('✅ Email verification sent successfully:', result.messageId);
-      console.log(`   Response: ${result.response}`);
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorCode = (error as any)?.code;
-      const errorCommand = (error as any)?.command;
-      
-      console.error('❌ Error sending email verification:', errorMessage);
-      console.error('   Error code:', errorCode);
-      console.error('   Error command:', errorCommand);
-      
-      // Log more details for common Gmail errors
-      if (errorCode === 'EAUTH') {
-        console.error('❌ Authentication failed. This usually means:');
-        console.error('   1. The password is incorrect');
-        console.error('   2. Gmail requires an "App Password" instead of your regular password');
-        console.error('   3. 2-Step Verification must be enabled in your Google account');
-        console.error('   Solution: Generate an App Password at https://myaccount.google.com/apppasswords');
-      } else if (errorCode === 'ECONNECTION' || errorCode === 'ETIMEDOUT') {
-        console.error('❌ Connection failed. This usually means:');
-        console.error('   1. The SMTP server is unreachable');
-        console.error('   2. The port is incorrect (587 for TLS, 465 for SSL)');
-        console.error('   3. Firewall or network issues');
-      } else if (errorCode === 'EENVELOPE') {
-        console.error('❌ Envelope error. Check the recipient email address.');
+        console.log(`📧 Attempting to send verification email to ${emailData.to} (attempt ${attempt}/${maxRetries})...`);
+        const result = await this.transporter.sendMail(mailOptions);
+        console.log('✅ Email verification sent successfully:', result.messageId);
+        console.log(`   Response: ${result.response}`);
+        return true;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const errorMessage = lastError.message;
+        const errorCode = (error as any)?.code;
+        
+        console.error(`❌ Error sending email verification (attempt ${attempt}/${maxRetries}):`, errorMessage);
+        console.error('   Error code:', errorCode);
+        
+        // Don't retry on authentication errors
+        if (errorCode === 'EAUTH') {
+          console.error('❌ Authentication failed. This usually means:');
+          console.error('   1. The password is incorrect');
+          console.error('   2. Gmail requires an "App Password" instead of your regular password');
+          console.error('   3. 2-Step Verification must be enabled in your Google account');
+          console.error('   Solution: Generate an App Password at https://myaccount.google.com/apppasswords');
+          throw error; // Don't retry auth errors
+        }
+        
+        // Retry connection errors
+        if (errorCode === 'ECONNECTION' || errorCode === 'ETIMEDOUT' || errorCode === 'ESOCKET') {
+          if (attempt < maxRetries) {
+            console.warn(`⚠️ Connection error, will retry (${attempt}/${maxRetries})...`);
+            continue; // Retry
+          } else {
+            console.error('❌ Connection failed after all retries. This usually means:');
+            console.error('   1. Railway is blocking outbound SMTP connections');
+            console.error('   2. The SMTP server is unreachable');
+            console.error('   3. Try changing SMTP_PORT to 465 and SMTP_SECURE to true');
+            console.error('   Solution: Consider using a transactional email service like:');
+            console.error('   - SendGrid (recommended for Railway) - https://sendgrid.com');
+            console.error('   - Mailgun - https://mailgun.com');
+            console.error('   - AWS SES - https://aws.amazon.com/ses/');
+            console.error('   - Or contact Railway support to allow SMTP outbound connections');
+          }
+        }
+        
+        // Don't retry other errors
+        if (attempt === maxRetries) {
+          if (errorCode === 'EENVELOPE') {
+            console.error('❌ Envelope error. Check the recipient email address.');
+          }
+          throw error;
+        }
       }
-      
-      throw error; // Re-throw to allow caller to handle
     }
+    
+    // If we get here, all retries failed
+    throw lastError || new Error('Failed to send email after all retries');
   }
 
   // HTML email template
@@ -596,6 +653,7 @@ export class EmailService {
   async testConnection(): Promise<{ success: boolean; error?: string; details?: any }> {
     try {
       console.log('🔍 Testing email service connection...');
+      // Use the existing transporter (it already has proper timeouts configured)
       await this.transporter.verify();
       console.log('✅ Email service connection successful');
       return { success: true };
@@ -620,6 +678,18 @@ export class EmailService {
             'Generate a new app password for "Mail"',
             'Use that password (16 characters) in SMTP_PASS instead of your regular password'
           ]
+        };
+      } else if (errorCode === 'ECONNECTION' || errorCode === 'ETIMEDOUT' || errorCode === 'ESOCKET') {
+        details = {
+          ...details,
+          solution: 'Railway may be blocking SMTP connections. Try these solutions:',
+          steps: [
+            'Change SMTP_PORT to 465 and SMTP_SECURE to true in Railway environment variables',
+            'Use a transactional email service like SendGrid (recommended for Railway)',
+            'Contact Railway support to allow outbound SMTP connections',
+            'Or use a cloud email service that provides API access (SendGrid, Mailgun, AWS SES)'
+          ],
+          railwayNote: 'Railway often blocks port 587. Port 465 with SSL usually works better.'
         };
       }
       

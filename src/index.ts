@@ -185,12 +185,24 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint for automatic detection
+// This endpoint is critical for Railway's health checks
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     message: 'Backend is running correctly',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Additional health check for Railway
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Backend API is running correctly',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -253,12 +265,24 @@ const startServer = async (): Promise<void> => {
     
     // Listen on 0.0.0.0 to accept connections from Railway's proxy
     // Railway automatically injects PORT environment variable
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server is running on port ${PORT} (0.0.0.0)`);
+    // IMPORTANT: Railway expects the server to listen on the PORT env var
+    const listenPort = PORT;
+    const listenHost = '0.0.0.0';
+    
+    console.log(`🔧 Starting server on ${listenHost}:${listenPort}`);
+    
+    server.listen(listenPort, listenHost, () => {
+      console.log(`🚀 Server is running on port ${listenPort} (${listenHost})`);
       console.log(`🌐 Server is listening on all network interfaces`);
-      const serverUrl = process.env.BACKEND_URL || `http://localhost:${PORT}`;
+      const serverUrl = process.env.BACKEND_URL || `http://localhost:${listenPort}`;
       console.log(`📊 Health check available at: ${serverUrl}/health`);
       console.log(`🔌 Socket.io server is ready for real-time chat`);
+      
+      // Verify the server is actually listening
+      const address = server.address();
+      if (address) {
+        console.log(`✅ Server address: ${typeof address === 'string' ? address : `${address.address}:${address.port}`}`);
+      }
     });
     
     // Handle server errors

@@ -240,32 +240,8 @@ const startServer = async (): Promise<void> => {
     await db.getConnection();
     console.log('✅ MySQL connection successful!');
     
-    // Initialize Google Drive service on startup
-    try {
-      console.log('🚀 STARTUP: Initializing Google Drive service...');
-      const googleDriveService = require('./services/googleDriveOAuth.service');
-      console.log('🚀 STARTUP: Google Drive service module loaded');
-      
-      const initialized = await googleDriveService.initialize();
-      console.log('🚀 STARTUP: Google Drive service initialization result:', initialized);
-      
-      if (initialized) {
-        console.log('✅ STARTUP: Google Drive service initialized successfully!');
-        
-        // Check service status
-        const status = await googleDriveService.getServiceStatus();
-        console.log('📊 STARTUP: Google Drive service status:', status);
-      } else {
-        console.log('⚠️ STARTUP: Google Drive service initialization failed - manual authorization may be required');
-      }
-    } catch (error) {
-      console.log('❌ STARTUP: Google Drive service initialization error:', (error as Error).message);
-      console.log('❌ STARTUP: Error stack:', (error as Error).stack);
-    }
-    
-    // Listen on 0.0.0.0 to accept connections from Railway's proxy
-    // Railway automatically injects PORT environment variable
-    // IMPORTANT: Railway expects the server to listen on the PORT env var
+    // Start server IMMEDIATELY after DB connection (before Google Drive init)
+    // This ensures Railway can connect as soon as possible
     const listenPort = PORT;
     const listenHost = '0.0.0.0';
     
@@ -282,6 +258,32 @@ const startServer = async (): Promise<void> => {
       const address = server.address();
       if (address) {
         console.log(`✅ Server address: ${typeof address === 'string' ? address : `${address.address}:${address.port}`}`);
+      }
+    });
+    
+    // Initialize Google Drive service in background (non-blocking)
+    // This allows the server to start responding immediately
+    setImmediate(async () => {
+      try {
+        console.log('🚀 STARTUP: Initializing Google Drive service in background...');
+        const googleDriveService = require('./services/googleDriveOAuth.service');
+        console.log('🚀 STARTUP: Google Drive service module loaded');
+        
+        const initialized = await googleDriveService.initialize();
+        console.log('🚀 STARTUP: Google Drive service initialization result:', initialized);
+        
+        if (initialized) {
+          console.log('✅ STARTUP: Google Drive service initialized successfully!');
+          
+          // Check service status
+          const status = await googleDriveService.getServiceStatus();
+          console.log('📊 STARTUP: Google Drive service status:', status);
+        } else {
+          console.log('⚠️ STARTUP: Google Drive service initialization failed - manual authorization may be required');
+        }
+      } catch (error) {
+        console.log('❌ STARTUP: Google Drive service initialization error:', (error as Error).message);
+        console.log('❌ STARTUP: Error stack:', (error as Error).stack);
       }
     });
     

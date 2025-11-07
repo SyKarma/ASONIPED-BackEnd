@@ -46,7 +46,7 @@ dotenv.config();
 // Initialize Express app and HTTP server
 const app = express();
 const server = createServer(app);
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Setup Socket.io
 const io = setupSocketIO(server);

@@ -48,6 +48,11 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+// Log port configuration
+console.log('🔧 Port Configuration:');
+console.log(`   process.env.PORT: ${process.env.PORT || 'not set'}`);
+console.log(`   Using PORT: ${PORT}`);
+
 // Setup Socket.io
 const io = setupSocketIO(server);
 
@@ -146,6 +151,22 @@ if (allowedOrigins.length > 0) {
   console.log(`   ⚠️ No FRONTEND_URL set - allowing all origins`);
 }
 
+// Handle OPTIONS requests explicitly (CORS preflight) - BEFORE other routes
+app.options('*', cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    if (allowedOrigins.length === 0) return callback(null, true);
+    if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Allow for now to debug
+  },
+  credentials: true
+}), (req, res) => {
+  res.sendStatus(200);
+});
+
 // Setup Swagger documentation
 setupSwagger(app);
 
@@ -222,11 +243,24 @@ const startServer = async (): Promise<void> => {
     }
     
     // Listen on 0.0.0.0 to accept connections from Railway's proxy
+    // Railway automatically injects PORT environment variable
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT} (0.0.0.0)`);
+      console.log(`🌐 Server is listening on all network interfaces`);
       const serverUrl = process.env.BACKEND_URL || `http://localhost:${PORT}`;
       console.log(`📊 Health check available at: ${serverUrl}/health`);
       console.log(`🔌 Socket.io server is ready for real-time chat`);
+    });
+    
+    // Handle server errors
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use`);
+        console.error(`❌ Please check if another process is using this port`);
+      } else {
+        console.error(`❌ Server error:`, error);
+      }
+      process.exit(1);
     });
   } catch (error) {
     console.error('❌ MySQL connection failed:', error);

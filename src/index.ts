@@ -221,8 +221,9 @@ const startServer = async (): Promise<void> => {
       console.log('❌ STARTUP: Error stack:', (error as Error).stack);
     }
     
-    server.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
+    // Listen on 0.0.0.0 to accept connections from Railway's proxy
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server is running on port ${PORT} (0.0.0.0)`);
       const serverUrl = process.env.BACKEND_URL || `http://localhost:${PORT}`;
       console.log(`📊 Health check available at: ${serverUrl}/health`);
       console.log(`🔌 Socket.io server is ready for real-time chat`);

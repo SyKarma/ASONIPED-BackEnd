@@ -6,6 +6,85 @@ import googleDriveService from '../../../services/googleDriveOAuth.service';
 import tokenService from '../../../services/googleDriveToken.service';
 
 const router = express.Router();
+const mysql = require('mysql2/promise');
+
+// Helper function to get database connection config (handles Railway internal/public URLs)
+function getDatabaseConfig() {
+  let dbHost = process.env.DB_HOST || 'localhost';
+  let dbPort = process.env.DB_PORT ? Number(process.env.DB_PORT.trim()) : 3306;
+  let dbUser = process.env.DB_USER || 'root';
+  let dbPassword = process.env.DB_PASSWORD || '';
+  let dbName = process.env.DB_NAME || 'asonipeddigitaltest';
+  
+  // Check if MYSQL_PUBLIC_URL is available first (more reliable than internal URL)
+  if (process.env.MYSQL_PUBLIC_URL) {
+    try {
+      const publicUrl = process.env.MYSQL_PUBLIC_URL.trim();
+      const match = publicUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
+      if (match) {
+        dbUser = match[1];
+        dbPassword = match[2];
+        dbHost = match[3]; // host (e.g., turntable.proxy.rlwy.net)
+        dbPort = Number(match[4]); // port
+        dbName = match[5].trim(); // database name (remove query params if any)
+        console.log('✅ Using MYSQL_PUBLIC_URL for database connection');
+        return { dbHost, dbPort, dbUser, dbPassword, dbName };
+      }
+    } catch (e) {
+      console.warn('⚠️ Could not parse MYSQL_PUBLIC_URL:', e);
+    }
+  }
+  
+  // Check if MYSQL_URL is available (only if MYSQL_PUBLIC_URL didn't set dbHost)
+  const originalDbHost = process.env.DB_HOST || 'localhost';
+  if (dbHost === originalDbHost && process.env.MYSQL_URL) {
+    try {
+      const mysqlUrl = process.env.MYSQL_URL.trim();
+      const match = mysqlUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
+      if (match) {
+        const hostname = match[3];
+        // Prefer public URLs over internal ones
+        if (hostname.includes('proxy.rlwy.net') || hostname.includes('turntable.proxy.rlwy.net')) {
+          dbUser = match[1];
+          dbPassword = match[2];
+          dbHost = hostname;
+          dbPort = Number(match[4]);
+          dbName = match[5].trim(); // database name (remove query params if any)
+          console.log('✅ Using MYSQL_URL (public) for database connection');
+          return { dbHost, dbPort, dbUser, dbPassword, dbName };
+        } else if (hostname.includes('railway.internal')) {
+          console.warn('⚠️ MYSQL_URL uses railway.internal - trying to find public URL');
+          // Don't use internal URL, keep trying
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Could not parse MYSQL_URL');
+    }
+  }
+  
+  // If DB_HOST is still railway.internal, try to use MYSQL_PUBLIC_URL as fallback
+  if (dbHost && dbHost.includes('railway.internal') && !dbHost.includes('proxy.rlwy.net')) {
+    if (process.env.MYSQL_PUBLIC_URL) {
+      try {
+        const publicUrl = process.env.MYSQL_PUBLIC_URL.trim();
+        const match = publicUrl.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
+        if (match) {
+          console.log('🔄 Switching from internal to public MySQL URL');
+          dbUser = match[1];
+          dbPassword = match[2];
+          dbHost = match[3];
+          dbPort = Number(match[4]);
+          dbName = match[5].trim(); // database name (remove query params if any)
+          return { dbHost, dbPort, dbUser, dbPassword, dbName };
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not parse MYSQL_PUBLIC_URL for fallback');
+      }
+    }
+  }
+  
+  return { dbHost, dbPort, dbUser, dbPassword, dbName };
+}
 
 // Get Google Drive service status (temporarily without auth for debugging)
 router.get('/status', async (req: any, res: any) => {
@@ -69,16 +148,18 @@ router.post('/refresh-token', async (req: any, res: any) => {
 // Clear existing tokens and force re-authorization
 router.post('/clear-tokens', async (req: any, res: any) => {
   try {
-    const mysql = require('mysql2/promise');
+    const { dbHost, dbPort, dbUser, dbPassword, dbName } = getDatabaseConfig();
     
     const db = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'asonipeddigitaltest',
+      host: dbHost,
+      user: dbUser,
+      password: dbPassword,
+      database: dbName,
+      port: dbPort,
       waitForConnections: true,
       connectionLimit: 10,
-      queueLimit: 0
+      queueLimit: 0,
+      connectTimeout: 10000
     });
     
     await db.execute('DELETE FROM google_drive_tokens');
@@ -104,13 +185,44 @@ router.get('/auth-url', async (req: any, res: any) => {
     const fs = require('fs');
     const path = require('path');
     
-    const credentialsPath = path.join(__dirname, '../../../../credentials/oauth-credentials.json');
-    const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    // Load credentials from environment variables or file
+    let credentials;
+    
+    // Support both GOOGLE_CLIENT_ID and GOOGLE_DRIVE_CLIENT_ID (legacy)
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_DRIVE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+    
+    if (clientId && clientSecret) {
+      // Use environment variables (production/Railway)
+      credentials = {
+        web: {
+          client_id: clientId,
+          client_secret: clientSecret
+        }
+      };
+    } else {
+      // Fallback to file (local development)
+      const credentialsPath = path.join(__dirname, '../../../../credentials/oauth-credentials.json');
+      
+      if (!fs.existsSync(credentialsPath)) {
+        return res.status(500).json({
+          success: false,
+          error: 'Google Drive credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.'
+        });
+      }
+
+      credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    }
+    
+    // Get redirect URI from environment or use default (same logic as callback route)
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
+                       (process.env.BACKEND_URL ? process.env.BACKEND_URL + '/admin/google-drive/auth/callback' : null) ||
+                       'http://localhost:3000/admin/google-drive/auth/callback';
     
     const oauth2Client = new google.auth.OAuth2(
       credentials.web.client_id,
       credentials.web.client_secret,
-      'http://localhost:3000/admin/google-drive/auth/callback'
+      redirectUri
     );
 
     const authUrl = oauth2Client.generateAuthUrl({
@@ -122,13 +234,15 @@ router.get('/auth-url', async (req: any, res: any) => {
     res.json({
       success: true,
       authUrl,
+      redirectUri, // Include redirect URI in response for debugging
       message: 'Visit this URL to authorize the application'
     });
   } catch (error) {
     console.error('Error generating auth URL:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to generate authorization URL'
+      error: 'Failed to generate authorization URL',
+      details: (error as Error).message
     });
   }
 });
@@ -168,7 +282,6 @@ router.get('/auth/callback', async (req: any, res: any) => {
     const { google } = require('googleapis');
     const fs = require('fs');
     const path = require('path');
-    const mysql = require('mysql2/promise');
     
     // Load credentials from environment variables or file
     let credentials;
@@ -221,15 +334,24 @@ router.get('/auth/callback', async (req: any, res: any) => {
     oauth2Client.setCredentials(tokens);
     
     
-    // Save token to database
+    // Save token to database - use helper function to get proper database config
+    const { dbHost, dbPort, dbUser, dbPassword, dbName } = getDatabaseConfig();
+    
+    console.log('🗄️ OAuth Callback Database Configuration:');
+    console.log(`   Host: ${dbHost}`);
+    console.log(`   Port: ${dbPort}`);
+    console.log(`   Database: ${dbName}`);
+    
     const db = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'asonipeddigitaltest',
+      host: dbHost,
+      user: dbUser,
+      password: dbPassword,
+      database: dbName,
+      port: dbPort,
       waitForConnections: true,
       connectionLimit: 10,
-      queueLimit: 0
+      queueLimit: 0,
+      connectTimeout: 10000
     });
     
     // Clear existing tokens
@@ -302,16 +424,18 @@ router.get('/auth/callback', async (req: any, res: any) => {
 // Run database migration to allow NULL values
 router.post('/migrate-db', async (req: any, res: any) => {
   try {
-    const mysql = require('mysql2/promise');
+    const { dbHost, dbPort, dbUser, dbPassword, dbName } = getDatabaseConfig();
     
     const db = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'asonipeddigitaltest',
+      host: dbHost,
+      user: dbUser,
+      password: dbPassword,
+      database: dbName,
+      port: dbPort,
       waitForConnections: true,
       connectionLimit: 10,
-      queueLimit: 0
+      queueLimit: 0,
+      connectTimeout: 10000
     });
 
     // Update columns to allow NULL values

@@ -594,14 +594,67 @@ export const removeRole = async (req: Request, res: Response): Promise<void> => 
   }
 }; 
 
-// Get all users (admin only)
+// Get all users (admin only) with pagination, filtering, and sorting
 export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const users = await UserModel.getAllUsers();
-    res.json(users);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string;
+    const status = req.query.status as 'active' | 'inactive' | undefined;
+    const emailVerified = req.query.email_verified === 'true' ? true : req.query.email_verified === 'false' ? false : undefined;
+    const role = req.query.role as string | undefined;
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
+    const sortField = req.query.sortField as 'id' | 'username' | 'email' | 'full_name' | 'created_at' | 'status' | undefined;
+    const sortOrder = (req.query.sortOrder as 'ASC' | 'DESC') || 'DESC';
+
+    const filters: UserModel.UserFilters = {};
+    if (search) filters.search = search;
+    if (status) filters.status = status;
+    if (emailVerified !== undefined) filters.email_verified = emailVerified;
+    if (role) filters.role = role;
+    if (dateFrom) filters.dateFrom = dateFrom;
+    if (dateTo) filters.dateTo = dateTo;
+
+    const sort: UserModel.UserSort | undefined = sortField ? { field: sortField, order: sortOrder } : undefined;
+
+    const result = await UserModel.getAllUsers(filters, sort, page, limit);
+    res.json(result);
   } catch (err) {
     console.error('Error getting all users:', err);
     res.status(500).json({ error: 'Error getting users' });
+  }
+};
+
+// Get user by ID with details (admin only)
+export const getUserById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const user = await UserModel.getUserWithRoles(Number(id));
+    
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Get additional user statistics
+    const [recordsCount] = await db.query('SELECT COUNT(*) as count FROM records WHERE created_by = ?', [id]);
+    const [ticketsCount] = await db.query('SELECT COUNT(*) as count FROM donation_tickets WHERE user_id = ?', [id]);
+    const [workshopsCount] = await db.query('SELECT COUNT(*) as count FROM workshop_enrollments WHERE user_id = ? AND status = "enrolled"', [id]);
+    const [volunteersCount] = await db.query('SELECT COUNT(*) as count FROM volunteer_registrations WHERE user_id = ? AND status = "registered"', [id]);
+
+    res.json({
+      ...user,
+      statistics: {
+        records: (recordsCount as any[])[0]?.count || 0,
+        tickets: (ticketsCount as any[])[0]?.count || 0,
+        workshops: (workshopsCount as any[])[0]?.count || 0,
+        volunteers: (volunteersCount as any[])[0]?.count || 0
+      }
+    });
+  } catch (err) {
+    console.error('Error getting user by ID:', err);
+    res.status(500).json({ error: 'Error getting user' });
   }
 };
 
@@ -637,10 +690,28 @@ export const getEligibleUsersForHandover = async (req: Request, res: Response): 
 // Create new user (admin only)
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, password } = req.body;
+    const { username, password, email, full_name, phone, status, roles } = req.body;
 
     if (!username || !password) {
       res.status(400).json({ error: 'Username and password are required' });
+      return;
+    }
+
+    // Validate email if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: 'Debe ingresar un correo electrónico válido.' });
+      return;
+    }
+
+    // Validate full_name if provided
+    if (full_name && !/^([A-Za-zÁÉÍÓÚáéíóúÑñ]+(\s+|$)){2,}$/.test(full_name.trim())) {
+      res.status(400).json({ error: 'Debe ingresar un nombre completo válido (al menos dos palabras).' });
+      return;
+    }
+
+    // Validate phone if provided
+    if (phone && !/^[0-9]{8}$/.test(phone)) {
+      res.status(400).json({ error: 'El teléfono debe tener exactamente 8 dígitos.' });
       return;
     }
 
@@ -651,20 +722,41 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    // Check if email already exists
+    if (email) {
+      const existingEmail = await UserModel.getUserByEmail(email);
+      if (existingEmail) {
+        res.status(400).json({ error: 'Email is already registered' });
+        return;
+      }
+    }
+
     // Encrypt password
     const passwordHash = await UserModel.hashPassword(password);
 
     // Create user
     const userId = await UserModel.createUser({
       username,
-      email: `${username}@asoniped.com`, // Temporary email
+      email: email || `${username}@asoniped.com`,
       password_hash: passwordHash,
-      full_name: username, // Temporary name
-      status: 'active'
+      full_name: full_name || username,
+      phone: phone || null,
+      status: status || 'active'
     });
 
-    // Assign admin role
-    await UserModel.assignRoleToUser(userId, 'admin');
+    // Assign roles if provided, otherwise assign admin role
+    if (roles && Array.isArray(roles)) {
+      for (const role of roles) {
+        try {
+          await UserModel.assignRoleToUser(userId, role);
+        } catch (error) {
+          console.error(`Error assigning role ${role}:`, error);
+        }
+      }
+    } else {
+      // Assign admin role by default
+      await UserModel.assignRoleToUser(userId, 'admin');
+    }
 
     res.status(201).json({ message: 'User created successfully', id: userId });
   } catch (err) {
@@ -677,12 +769,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { username, password } = req.body;
-
-    if (!username) {
-      res.status(400).json({ error: 'Username is required' });
-      return;
-    }
+    const { username, password, email, full_name, phone, status } = req.body;
 
     // Check if user exists
     const existingUser = await UserModel.getUserById(Number(id));
@@ -691,17 +778,44 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Check if new username already exists (if different)
-    if (username !== existingUser.username) {
-      const userWithUsername = await UserModel.getUserByUsername(username);
-      if (userWithUsername) {
-        res.status(400).json({ error: 'Username already exists' });
-        return;
+    // Prepare update data
+    const updateData: any = {};
+
+    if (username !== undefined) {
+      // Check if new username already exists (if different)
+      if (username !== existingUser.username) {
+        const userWithUsername = await UserModel.getUserByUsername(username);
+        if (userWithUsername) {
+          res.status(400).json({ error: 'Username already exists' });
+          return;
+        }
       }
+      updateData.username = username;
     }
 
-    // Prepare update data
-    const updateData: any = { username };
+    if (email !== undefined) {
+      // Check if email already exists (if different)
+      if (email !== existingUser.email) {
+        const userWithEmail = await UserModel.getUserByEmail(email);
+        if (userWithEmail) {
+          res.status(400).json({ error: 'Email is already in use' });
+          return;
+        }
+      }
+      updateData.email = email;
+    }
+
+    if (full_name !== undefined) {
+      updateData.full_name = full_name;
+    }
+
+    if (phone !== undefined) {
+      updateData.phone = phone;
+    }
+
+    if (status !== undefined) {
+      updateData.status = status;
+    }
     
     // If new password provided, encrypt it
     if (password) {

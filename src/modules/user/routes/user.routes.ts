@@ -13,6 +13,9 @@ router.post('/login', UserController.loginUser);
 router.post('/verify-email', UserController.verifyEmail);
 router.post('/resend-verification', UserController.resendVerificationEmail);
 router.get('/statistics', StatisticsController.getStatistics);
+router.get('/calendar-activities/upcoming', authenticateToken, StatisticsController.getUpcomingCalendarActivities);
+router.get('/calendar-activities/month', authenticateToken, StatisticsController.getCalendarActivitiesByMonth);
+router.get('/recent-activities', authenticateToken, StatisticsController.getRecentActivities);
 router.get('/test-email', UserController.testEmailService); // Email service diagnostic endpoint
 
 // Password recovery routes (no authentication required)
@@ -35,6 +38,7 @@ router.post('/me/password', authenticateToken, UserController.changeMyPassword);
 // Administration routes (require admin role)
 router.get('/', authenticateToken, UserController.getAllUsers);
 router.get('/eligible-for-handover', authenticateToken, UserController.getEligibleUsersForHandover);
+router.get('/:id', authenticateToken, UserController.getUserById);
 router.post('/', authenticateToken, UserController.createUser);
 router.put('/:id', authenticateToken, UserController.updateUser);
 router.delete('/:id', authenticateToken, UserController.deleteUser);

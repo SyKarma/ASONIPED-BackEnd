@@ -217,9 +217,123 @@ export const updateUserProfile = async (userId: number, profileType: string, dat
 }; 
 
 // Get all users
-export const getAllUsers = async (): Promise<User[]> => {
-  const [rows] = await db.query('SELECT * FROM users ORDER BY created_at DESC');
-  return rows as User[];
+export interface UserFilters {
+  search?: string;
+  status?: 'active' | 'inactive';
+  email_verified?: boolean;
+  role?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface UserSort {
+  field: 'id' | 'username' | 'email' | 'full_name' | 'created_at' | 'status';
+  order: 'ASC' | 'DESC';
+}
+
+export interface PaginatedUsersResult {
+  users: UserWithRoles[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export const getAllUsers = async (
+  filters?: UserFilters,
+  sort?: UserSort,
+  page: number = 1,
+  limit: number = 10
+): Promise<PaginatedUsersResult> => {
+  let query = 'SELECT u.* FROM users u';
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  // Apply filters
+  if (filters?.search) {
+    conditions.push('(u.username LIKE ? OR u.email LIKE ? OR u.full_name LIKE ?)');
+    const searchTerm = `%${filters.search}%`;
+    params.push(searchTerm, searchTerm, searchTerm);
+  }
+
+  if (filters?.status) {
+    conditions.push('u.status = ?');
+    params.push(filters.status);
+  }
+
+  if (filters?.email_verified !== undefined) {
+    conditions.push('u.email_verified = ?');
+    params.push(filters.email_verified ? 1 : 0);
+  }
+
+  if (filters?.dateFrom) {
+    conditions.push('DATE(u.created_at) >= ?');
+    params.push(filters.dateFrom);
+  }
+
+  if (filters?.dateTo) {
+    conditions.push('DATE(u.created_at) <= ?');
+    params.push(filters.dateTo);
+  }
+
+  // Role filter requires join
+  if (filters?.role) {
+    query += ' JOIN user_role_assignments ura ON u.id = ura.user_id JOIN user_roles ur ON ura.role_id = ur.id';
+    conditions.push('ur.name = ?');
+    params.push(filters.role);
+  }
+
+  // Add WHERE clause if conditions exist
+  if (conditions.length > 0) {
+    query += ' WHERE ' + conditions.join(' AND ');
+  }
+
+  // Remove duplicates if role filter was used
+  if (filters?.role) {
+    query = query.replace('SELECT u.*', 'SELECT DISTINCT u.*');
+  }
+
+  // Get total count
+  const countQuery = query.replace('SELECT DISTINCT u.*', 'SELECT COUNT(DISTINCT u.id) as total').replace('SELECT u.*', 'SELECT COUNT(u.id) as total');
+  const [countRows] = await db.query(countQuery, params);
+  const total = (countRows as any[])[0]?.total || 0;
+
+  // Apply sorting
+  const sortField = sort?.field || 'created_at';
+  const sortOrder = sort?.order || 'DESC';
+  const validSortFields = ['id', 'username', 'email', 'full_name', 'created_at', 'status'];
+  const finalSortField = validSortFields.includes(sortField) ? sortField : 'created_at';
+  query += ` ORDER BY u.${finalSortField} ${sortOrder}`;
+
+  // Apply pagination
+  const offset = (page - 1) * limit;
+  query += ' LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+
+  const [rows] = await db.query(query, params);
+  const users = rows as User[];
+
+  // Get roles for each user
+  const usersWithRoles: UserWithRoles[] = await Promise.all(
+    users.map(async (user) => {
+      const [roleRows] = await db.query(`
+        SELECT ur.name 
+        FROM user_roles ur 
+        JOIN user_role_assignments ura ON ur.id = ura.role_id 
+        WHERE ura.user_id = ?
+      `, [user.id]);
+      const roles = (roleRows as any[]).map(row => row.name);
+      return { ...user, roles };
+    })
+  );
+
+  return {
+    users: usersWithRoles,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit)
+  };
 };
 
 // Remove all roles from a user

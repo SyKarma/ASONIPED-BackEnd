@@ -330,6 +330,35 @@ export const getVolunteerRegistrations = async (volunteerOptionId: number): Prom
 };
 
 export const getAvailableSpots = async (volunteerOptionId: number): Promise<{available_spots: number, total_spots: number, registered_count: number}> => {
-  const [rows] = await db.query('CALL GetAvailableSpots(?)', [volunteerOptionId]);
-  return (rows as any)[0][0];
+  try {
+    // Get total spots for the volunteer option
+    const [volunteerRows] = await db.query(
+      'SELECT spots FROM volunteer_options WHERE id = ?',
+      [volunteerOptionId]
+    );
+    
+    if ((volunteerRows as any[]).length === 0) {
+      throw new Error('Volunteer option not found');
+    }
+    
+    const totalSpots = (volunteerRows as any[])[0].spots || 0;
+    
+    // Get count of active registrations
+    const [registrationRows] = await db.query(
+      'SELECT COUNT(*) as count FROM volunteer_registrations WHERE volunteer_option_id = ? AND status = "registered"',
+      [volunteerOptionId]
+    );
+    
+    const registeredCount = (registrationRows as any[])[0].count || 0;
+    const availableSpots = totalSpots - registeredCount;
+    
+    return {
+      available_spots: availableSpots,
+      total_spots: totalSpots,
+      registered_count: registeredCount
+    };
+  } catch (error) {
+    console.error('Error in getAvailableSpots:', error);
+    throw error;
+  }
 };

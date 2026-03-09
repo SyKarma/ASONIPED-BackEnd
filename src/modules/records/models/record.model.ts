@@ -771,13 +771,18 @@ export const createOrUpdateRegistrationRequirements = async (recordId: number, r
       [recordId]
     ) as [any[], any];
     
+    // Persist document statuses (Entregado, En trámite, No aplica, Pendiente) from form dropdowns
+    const documentStatusesJson = Array.isArray(requirements.documents)
+      ? JSON.stringify(requirements.documents)
+      : null;
+
     if (existingRows.length > 0) {
       // Update existing requirements
       await db.query(
         `UPDATE registration_requirements SET 
          medical_diagnosis_doc = ?, birth_certificate_doc = ?, family_cedulas_doc = ?, 
          passport_photo_doc = ?, pension_certificate_doc = ?, study_certificate_doc = ?, 
-         bank_account_info = ?, affiliation_fee_paid = ?, general_observations = ?, updated_at = CURRENT_TIMESTAMP
+         bank_account_info = ?, affiliation_fee_paid = ?, general_observations = ?, document_statuses = ?, updated_at = CURRENT_TIMESTAMP
          WHERE record_id = ?`,
         [
           cleanValue(requirements.medical_diagnosis_doc),
@@ -789,6 +794,7 @@ export const createOrUpdateRegistrationRequirements = async (recordId: number, r
           cleanValue(requirements.bank_account_info),
           cleanValue(requirements.affiliation_fee_paid),
           cleanValue(requirements.general_observations),
+          documentStatusesJson,
           recordId
         ]
       );
@@ -798,8 +804,8 @@ export const createOrUpdateRegistrationRequirements = async (recordId: number, r
         `INSERT INTO registration_requirements 
          (record_id, medical_diagnosis_doc, birth_certificate_doc, family_cedulas_doc, 
           passport_photo_doc, pension_certificate_doc, study_certificate_doc,
-          bank_account_info, general_observations, affiliation_fee_paid)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          bank_account_info, general_observations, document_statuses, affiliation_fee_paid)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           recordId,
           cleanValue(requirements.medical_diagnosis_doc),
@@ -810,6 +816,7 @@ export const createOrUpdateRegistrationRequirements = async (recordId: number, r
           cleanValue(requirements.study_certificate_doc),
           cleanValue(requirements.bank_account_info),
           cleanValue(requirements.general_observations),
+          documentStatusesJson,
           cleanValue(requirements.affiliation_fee_paid)
         ]
       );

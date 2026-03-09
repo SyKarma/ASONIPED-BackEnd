@@ -37,6 +37,11 @@ router.get('/check-cedula-availability/:cedula', RecordController.checkCedulaAva
 // General routes (require authentication)
 router.get('/', authenticateToken, RecordController.getRecords); // List records
 
+// Routes for notes (must be BEFORE /:id so DELETE /notes/:noteId is not matched as /:id)
+router.put('/notes/:noteId', authenticateToken, RecordController.updateNote); // Update comment
+router.delete('/notes/:noteId', authenticateToken, RecordController.deleteNote); // Delete comment
+router.post('/:id/notes', authenticateToken, RecordController.addNote); // Add comment
+
 // Routes for specific records (with parameters)
 router.get('/:id', authenticateToken, RecordController.getRecordById); // Get record
 router.put('/:id', authenticateToken, RecordController.updateRecord); // Update record
@@ -53,12 +58,5 @@ router.put('/:id/update-phase1', authenticateToken, RecordController.updatePhase
 router.put('/:id/update-phase3', authenticateToken, uploadRecordDocuments, handleUploadError, RecordController.updatePhase3Data); // Update phase 3 data
 router.put('/:id/approve', authenticateToken, RecordController.approveRecord); // Approve complete record
 router.put('/:id/reject', authenticateToken, RecordController.rejectRecord); // Reject complete record
-
-// Routes for managing comments
-router.put('/notes/:noteId', authenticateToken, RecordController.updateNote); // Update comment
-router.delete('/notes/:noteId', authenticateToken, RecordController.deleteNote); // Delete comment
-
-// Route to delete record
-router.delete('/:id', authenticateToken, RecordController.deleteRecord); // Delete record
 
 export default router; 

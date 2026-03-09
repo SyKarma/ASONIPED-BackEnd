@@ -1254,6 +1254,37 @@ export const checkCedulaAvailability = async (req: Request, res: Response): Prom
   }
 };
 
+// Add note to a record (generic endpoint)
+export const addNote = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const recordId = parseInt(req.params.id);
+    const { note, type } = req.body;
+
+    if (!recordId || isNaN(recordId)) {
+      res.status(400).json({ error: 'Invalid record ID' });
+      return;
+    }
+
+    if (!note || note.trim() === '') {
+      res.status(400).json({ error: 'Note cannot be empty' });
+      return;
+    }
+
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+
+    await RecordModel.addNote(recordId, {
+      note: note.trim(),
+      type: type || 'activity',
+      created_by: userId || undefined
+    });
+
+    res.json({ message: 'Note added successfully' });
+  } catch (err) {
+    console.error('Error adding note:', err);
+    res.status(500).json({ error: 'Error adding note' });
+  }
+};
+
 // Update note
 export const updateNote = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1396,6 +1427,9 @@ export const updateRecordAdmin = async (req: Request, res: Response): Promise<vo
 
     // Handle documentation requirements and file uploads
     if (documentation_requirements) {
+      // Persist registration_requirements (affiliation_fee_paid, general_observations, document_statuses)
+      await RecordModel.createOrUpdateRegistrationRequirements(recordId, documentation_requirements);
+
       // Process existing documents
       if (documentation_requirements.existing_documents) {
         for (const doc of documentation_requirements.existing_documents) {

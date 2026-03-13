@@ -251,6 +251,8 @@ CREATE TABLE registration_requirements (
   study_certificate_doc BOOLEAN DEFAULT FALSE,
   bank_account_info VARCHAR(255),
   affiliation_fee_paid BOOLEAN DEFAULT FALSE,
+  general_observations TEXT NULL,
+  document_statuses JSON NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE

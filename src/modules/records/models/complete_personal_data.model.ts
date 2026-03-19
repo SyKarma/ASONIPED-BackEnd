@@ -33,6 +33,8 @@ export const createCompletePersonalData = async (data: CompletePersonalData): Pr
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
+    const birthDateRaw = data.birth_date && String(data.birth_date).trim() !== '' ? data.birth_date : null;
+    const birthDate = birthDateRaw ?? '1900-01-01';
     const values = [
       data.record_id,
       data.record_number,
@@ -41,7 +43,7 @@ export const createCompletePersonalData = async (data: CompletePersonalData): Pr
       data.pcd_name,
       data.cedula,
       data.gender,
-      data.birth_date,
+      birthDate,
       data.age,
       data.birth_place,
       data.exact_address,
@@ -66,10 +68,13 @@ export const updateCompletePersonalData = async (recordId: number, data: Partial
     const fields = [];
     const values = [];
     
+    const dateFields = ['birth_date', 'registration_date'];
+    const datePlaceholder = '1900-01-01';
     Object.entries(data).forEach(([key, value]) => {
       if (value !== undefined && key !== 'id' && key !== 'record_id' && key !== 'created_at' && key !== 'updated_at') {
         fields.push(`${key} = ?`);
-        values.push(value);
+        const isEmptyDate = dateFields.includes(key) && (value === '' || (typeof value === 'string' && value.trim() === ''));
+        values.push(isEmptyDate ? datePlaceholder : value);
       }
     });
     

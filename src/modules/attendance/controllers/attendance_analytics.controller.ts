@@ -89,8 +89,7 @@ export const getAttendanceAnalyticsOverview = async (req: Request, res: Response
         attendance_trends: trends
       }
     });
-  } catch (err) {
-    console.error('Error getting attendance analytics overview:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting attendance analytics overview' });
   }
 };
@@ -169,7 +168,6 @@ export const getActivityReport = async (req: Request, res: Response): Promise<vo
       }
     });
   } catch (err) {
-    console.error('Error generating activity report:', err);
     res.status(500).json({ error: 'Error generating activity report' });
   }
 };
@@ -205,8 +203,7 @@ export const getActivityComparison = async (req: Request, res: Response): Promis
     }
 
     res.json({ comparison });
-  } catch (err) {
-    console.error('Error getting activity comparison:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting activity comparison' });
   }
 };
@@ -279,8 +276,7 @@ export const getAttendanceInsights = async (req: Request, res: Response): Promis
         top_beneficiarios: topBeneficiarios
       }
     });
-  } catch (err) {
-    console.error('Error getting attendance insights:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting attendance insights' });
   }
 };
@@ -366,8 +362,7 @@ export const exportAttendanceData = async (req: Request, res: Response): Promise
         }
       });
     }
-  } catch (err) {
-    console.error('Error exporting attendance data:', err);
+  } catch {
     res.status(500).json({ error: 'Error exporting attendance data' });
   }
 };

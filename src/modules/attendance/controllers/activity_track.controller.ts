@@ -53,7 +53,6 @@ export const createActivityTrack = async (req: Request, res: Response): Promise<
       activity_track_id: activityTrackId
     });
   } catch (err) {
-    console.error('Error creating activity track:', err);
     res.status(500).json({
       error: 'Error creating activity track',
       details: (err as Error).message || String(err)
@@ -83,8 +82,7 @@ export const getActivityTracks = async (req: Request, res: Response): Promise<vo
       limit,
       totalPages: Math.ceil(total / limit)
     });
-  } catch (err) {
-    console.error('Error getting activity tracks:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting activity tracks' });
   }
 };
@@ -107,8 +105,7 @@ export const getActivityTrackById = async (req: Request, res: Response): Promise
     }
 
     res.json(activityTrack);
-  } catch (err) {
-    console.error('Error getting activity track:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting activity track' });
   }
 };
@@ -154,8 +151,7 @@ export const updateActivityTrack = async (req: Request, res: Response): Promise<
     await ActivityTrackModel.updateActivityTrack(id, updateData);
 
     res.json({ message: 'Activity track updated successfully' });
-  } catch (err) {
-    console.error('Error updating activity track:', err);
+  } catch {
     res.status(500).json({ error: 'Error updating activity track' });
   }
 };
@@ -173,8 +169,7 @@ export const deleteActivityTrack = async (req: Request, res: Response): Promise<
     await ActivityTrackModel.deleteActivityTrack(id);
 
     res.json({ message: 'Activity track deleted successfully' });
-  } catch (err) {
-    console.error('Error deleting activity track:', err);
+  } catch {
     res.status(500).json({ error: 'Error deleting activity track' });
   }
 };
@@ -205,8 +200,7 @@ export const startQRScanning = async (req: Request, res: Response): Promise<void
     await ActivityTrackModel.startQRScanning(id);
 
     res.json({ message: 'QR scanning started successfully' });
-  } catch (err) {
-    console.error('Error starting QR scanning:', err);
+  } catch {
     res.status(500).json({ error: 'Error starting QR scanning' });
   }
 };
@@ -224,8 +218,7 @@ export const stopQRScanning = async (req: Request, res: Response): Promise<void>
     await ActivityTrackModel.stopQRScanning(id);
 
     res.json({ message: 'QR scanning stopped successfully' });
-  } catch (err) {
-    console.error('Error stopping QR scanning:', err);
+  } catch {
     res.status(500).json({ error: 'Error stopping QR scanning' });
   }
 };
@@ -241,8 +234,7 @@ export const getActiveScanningActivityTrack = async (req: Request, res: Response
     }
 
     res.json({ activeTrack });
-  } catch (err) {
-    console.error('Error getting active scanning activity track:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting active scanning activity track' });
   }
 };
@@ -270,8 +262,7 @@ export const getActivityTracksByDateRange = async (req: Request, res: Response):
     );
 
     res.json({ activityTracks });
-  } catch (err) {
-    console.error('Error getting activity tracks by date range:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting activity tracks by date range' });
   }
 };
@@ -284,8 +275,7 @@ export const getUpcomingActivityTracks = async (req: Request, res: Response): Pr
     const activityTracks = await ActivityTrackModel.getUpcomingActivityTracks(limit);
 
     res.json({ activityTracks });
-  } catch (err) {
-    console.error('Error getting upcoming activity tracks:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting upcoming activity tracks' });
   }
 };
@@ -326,8 +316,7 @@ export const getActivityTrackWithAttendance = async (req: Request, res: Response
         totalPages: Math.ceil(total / limit)
       }
     });
-  } catch (err) {
-    console.error('Error getting activity track with attendance:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting activity track with attendance' });
   }
 };

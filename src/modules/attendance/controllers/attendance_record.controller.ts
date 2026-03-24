@@ -53,8 +53,6 @@ export const processQRScan = async (req: Request, res: Response): Promise<void> 
       attendanceRecord
     });
   } catch (err) {
-    console.error('Error processing QR scan:', err);
-    
     if (err instanceof Error) {
       if (err.message.includes('already recorded')) {
         res.status(409).json({ error: err.message });
@@ -156,7 +154,6 @@ export const createManualAttendance = async (req: Request, res: Response): Promi
       attendanceRecord
     });
   } catch (err) {
-    console.error('Error creating manual attendance:', err);
     res.status(500).json({
       error: 'Error creating manual attendance',
       details: (err as Error).message || String(err)
@@ -192,8 +189,7 @@ export const getAttendanceRecords = async (req: Request, res: Response): Promise
       limit,
       totalPages: Math.ceil(total / limit)
     });
-  } catch (err) {
-    console.error('Error getting attendance records:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting attendance records' });
   }
 };
@@ -216,8 +212,7 @@ export const getAttendanceRecordById = async (req: Request, res: Response): Prom
     }
 
     res.json(attendanceRecord);
-  } catch (err) {
-    console.error('Error getting attendance record:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting attendance record' });
   }
 };
@@ -247,8 +242,7 @@ export const getAttendanceRecordsByActivityTrack = async (req: Request, res: Res
       limit,
       totalPages: Math.ceil(total / limit)
     });
-  } catch (err) {
-    console.error('Error getting attendance records by activity track:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting attendance records by activity track' });
   }
 };
@@ -273,8 +267,7 @@ export const updateAttendanceRecord = async (req: Request, res: Response): Promi
     await AttendanceRecordModel.updateAttendanceRecord(id, updateData);
 
     res.json({ message: 'Attendance record updated successfully' });
-  } catch (err) {
-    console.error('Error updating attendance record:', err);
+  } catch {
     res.status(500).json({ error: 'Error updating attendance record' });
   }
 };
@@ -292,8 +285,7 @@ export const deleteAttendanceRecord = async (req: Request, res: Response): Promi
     await AttendanceRecordModel.deleteAttendanceRecord(id);
 
     res.json({ message: 'Attendance record deleted successfully' });
-  } catch (err) {
-    console.error('Error deleting attendance record:', err);
+  } catch {
     res.status(500).json({ error: 'Error deleting attendance record' });
   }
 };
@@ -311,8 +303,7 @@ export const getAttendanceStats = async (req: Request, res: Response): Promise<v
     const stats = await AttendanceRecordModel.getAttendanceStats(activityTrackId);
 
     res.json({ stats });
-  } catch (err) {
-    console.error('Error getting attendance stats:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting attendance stats' });
   }
 };
@@ -340,8 +331,7 @@ export const getAttendanceStatsByDateRange = async (req: Request, res: Response)
     );
 
     res.json({ stats });
-  } catch (err) {
-    console.error('Error getting attendance stats by date range:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting attendance stats by date range' });
   }
 };
@@ -354,8 +344,7 @@ export const getRecentAttendanceRecords = async (req: Request, res: Response): P
     const records = await AttendanceRecordModel.getRecentAttendanceRecords(limit);
 
     res.json({ records });
-  } catch (err) {
-    console.error('Error getting recent attendance records:', err);
+  } catch {
     res.status(500).json({ error: 'Error getting recent attendance records' });
   }
 };
@@ -382,8 +371,7 @@ export const checkBeneficiarioAttendance = async (req: Request, res: Response): 
     );
 
     res.json({ hasAttended });
-  } catch (err) {
-    console.error('Error checking beneficiario attendance:', err);
+  } catch {
     res.status(500).json({ error: 'Error checking beneficiario attendance' });
   }
 };

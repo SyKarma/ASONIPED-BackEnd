@@ -1,5 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -43,15 +45,50 @@ import googleDriveRoutes from './modules/user/routes/googleDrive.routes';
 // Load environment variables
 dotenv.config();
 
+const APP_VERSION = (() => {
+  try {
+    const raw = readFileSync(join(__dirname, '..', 'package.json'), 'utf8');
+    return (JSON.parse(raw) as { version?: string }).version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+})();
+
+const GIT_SHA =
+  process.env.GIT_SHA ||
+  process.env.RAILWAY_GIT_COMMIT_SHA ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  null;
+
+type SmtpStartupStatus = 'pending' | 'ok' | 'failed' | 'skipped';
+
+const startupDiagnostics = {
+  email: {
+    smtpVerify: 'pending' as SmtpStartupStatus,
+  },
+  googleDrive: {
+    initComplete: false,
+    ready: false,
+  },
+};
+
+async function pingDatabase(): Promise<boolean> {
+  let conn;
+  try {
+    conn = await db.getConnection();
+    await conn.query('SELECT 1');
+    return true;
+  } catch {
+    return false;
+  } finally {
+    conn?.release();
+  }
+}
+
 // Initialize Express app and HTTP server
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-
-// Log port configuration
-console.log('🔧 Port Configuration:');
-console.log(`   process.env.PORT: ${process.env.PORT || 'not set'}`);
-console.log(`   Using PORT: ${PORT}`);
 
 // Setup Socket.io
 const io = setupSocketIO(server);
@@ -80,13 +117,12 @@ if (process.env.FRONTEND_URL) {
         if (!url.hostname.startsWith('www.')) {
           allowedOrigins.push(`https://www.${url.hostname}`);
         }
-      } catch (e) {
+      } catch {
         // If URL parsing fails, just use the original value
-        console.warn('⚠️ Could not parse FRONTEND_URL:', frontendUrl);
       }
     }
-  } catch (e) {
-    console.error('❌ Error processing FRONTEND_URL:', e);
+  } catch {
+    // ignore invalid FRONTEND_URL
   }
 }
 
@@ -105,7 +141,6 @@ app.use(cors({
     // In production, check against allowed origins
     if (allowedOrigins.length === 0) {
       // If no FRONTEND_URL is set, allow all (fallback)
-      console.warn('⚠️ WARNING: FRONTEND_URL not set, allowing all origins');
       return callback(null, true);
     }
     
@@ -128,10 +163,6 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // Log blocked origin for debugging
-    console.warn(`🚫 CORS blocked origin: ${origin}`);
-    console.warn(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
-    
     // Reject the request
     callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
   },
@@ -139,17 +170,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma']
 }));
-
-// Log CORS configuration on startup
-console.log('🌐 CORS Configuration:');
-console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-const rawFrontendUrl = process.env.FRONTEND_URL || 'not set';
-console.log(`   FRONTEND_URL (raw): ${rawFrontendUrl}`);
-if (allowedOrigins.length > 0) {
-  console.log(`   ✅ Allowed origins: ${allowedOrigins.join(', ')}`);
-} else {
-  console.log(`   ⚠️ No FRONTEND_URL set - allowing all origins`);
-}
 
 // Handle OPTIONS requests explicitly (CORS preflight) - BEFORE other routes
 // Use middleware instead of app.options('*') to avoid path-to-regexp error
@@ -184,25 +204,112 @@ app.get('/', (req, res) => {
   res.send('Backend is running!');
 });
 
-// Health check endpoint for automatic detection
-// This endpoint is critical for Railway's health checks
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
+async function buildHealthPayload() {
+  const dbOk = await pingDatabase();
+  const mem = process.memoryUsage();
+
+  let emailBlock: {
+    configured: boolean;
+    host: string;
+    userSet: boolean;
+    smtpVerifyAtStartup: SmtpStartupStatus;
+  } = {
+    configured: false,
+    host: '',
+    userSet: false,
+    smtpVerifyAtStartup: startupDiagnostics.email.smtpVerify,
+  };
+
+  try {
+    const { emailService } = require('./services/email.service');
+    const s = emailService.instance.getServiceStatus();
+    emailBlock = {
+      configured: s.configured,
+      host: s.host,
+      userSet: !!s.user,
+      smtpVerifyAtStartup: startupDiagnostics.email.smtpVerify,
+    };
+  } catch {
+    // keep defaults
+  }
+
+  let googleDriveBlock: Record<string, unknown> = {
+    serviceInitialized: false,
+    driveAvailable: false,
+    hasToken: false,
+    credentialsLoaded: false,
+  };
+
+  try {
+    const googleDriveService = require('./services/googleDriveOAuth.service');
+    googleDriveBlock = await googleDriveService.getServiceStatus();
+  } catch {
+    // keep defaults
+  }
+
+  return {
+    status: 'OK' as const,
     message: 'Backend is running correctly',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     port: PORT,
-    environment: process.env.NODE_ENV || 'development'
-  });
+    environment: process.env.NODE_ENV || 'development',
+    node: process.version,
+    version: APP_VERSION,
+    gitSha: GIT_SHA,
+    listen: { host: '0.0.0.0', port: PORT },
+    database: { ok: dbOk },
+    socketIo: true,
+    email: emailBlock,
+    googleDrive: googleDriveBlock,
+    memory: { rssMb: Math.round(mem.rss / 1024 / 1024) },
+  };
+}
+
+// Liveness + detail (always 200 when the process is serving HTTP)
+app.get('/health', async (_req, res) => {
+  try {
+    const body = await buildHealthPayload();
+    res.status(200).json(body);
+  } catch {
+    res.status(200).json({
+      status: 'OK',
+      message: 'Backend is running; health payload failed to build',
+      timestamp: new Date().toISOString(),
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development',
+    });
+  }
 });
 
-// Additional health check for Railway
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    message: 'Backend API is running correctly',
-    timestamp: new Date().toISOString()
+app.get('/api/health', async (_req, res) => {
+  try {
+    const body = await buildHealthPayload();
+    res.status(200).json(body);
+  } catch {
+    res.status(200).json({
+      status: 'OK',
+      message: 'Backend API is running',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Readiness: DB must respond (for load balancers / orchestrators)
+app.get('/ready', async (_req, res) => {
+  const dbOk = await pingDatabase();
+  if (!dbOk) {
+    res.status(503).json({
+      ready: false,
+      database: 'unreachable',
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+  res.status(200).json({
+    ready: true,
+    database: 'ok',
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -238,94 +345,59 @@ app.use('/admin/google-drive', googleDriveRoutes);
 const startServer = async (): Promise<void> => {
   try {
     await db.getConnection();
-    console.log('✅ MySQL connection successful!');
-    
+
     // Start server IMMEDIATELY after DB connection (before Google Drive init)
     // This ensures Railway can connect as soon as possible
     const listenPort = PORT;
     const listenHost = '0.0.0.0';
-    
-    console.log(`🔧 Starting server on ${listenHost}:${listenPort}`);
-    
+
+    const nodeEnv = process.env.NODE_ENV || 'development';
     server.listen(listenPort, listenHost, () => {
-      console.log(`🚀 Server is running on port ${listenPort} (${listenHost})`);
-      console.log(`🌐 Server is listening on all network interfaces`);
-      const serverUrl = process.env.BACKEND_URL || `http://localhost:${listenPort}`;
-      console.log(`📊 Health check available at: ${serverUrl}/health`);
-      console.log(`🔌 Socket.io server is ready for real-time chat`);
-      
-      // Verify the server is actually listening
-      const address = server.address();
-      if (address) {
-        console.log(`✅ Server address: ${typeof address === 'string' ? address : `${address.address}:${address.port}`}`);
-      }
+      const base = process.env.BACKEND_URL || `http://localhost:${listenPort}`;
+      console.log(
+        `Server ${listenHost}:${listenPort} (${nodeEnv}) · ${base}/health · /ready · Socket.io · Node ${process.version}`
+      );
     });
-    
-    // Initialize email service and test connection
+
+    // Email + Google Drive in background; update diagnostics for /health and optional verbose log
     setImmediate(async () => {
       try {
-        console.log('📧 STARTUP: Initializing email service...');
         const { emailService } = require('./services/email.service');
         const emailStatus = emailService.instance.getServiceStatus();
-        
         if (emailStatus.configured) {
-          console.log('✅ STARTUP: Email service is configured');
-          const testResult = await emailService.instance.testConnection();
-          if (testResult.success) {
-            console.log('✅ STARTUP: Email service connection test successful');
-          } else {
-            console.error('❌ STARTUP: Email service connection test failed:', testResult.error);
-            if (testResult.details) {
-              console.error('   Details:', JSON.stringify(testResult.details, null, 2));
-            }
-          }
+          const r = await emailService.instance.testConnection();
+          startupDiagnostics.email.smtpVerify = r.success ? 'ok' : 'failed';
         } else {
-          console.warn('⚠️ STARTUP: Email service is NOT configured');
-          console.warn('⚠️ STARTUP: User registration will fail if email service is not configured');
+          startupDiagnostics.email.smtpVerify = 'skipped';
         }
-      } catch (error) {
-        console.error('❌ STARTUP: Email service initialization error:', (error as Error).message);
+      } catch {
+        startupDiagnostics.email.smtpVerify = 'failed';
       }
-    });
-    
-    // Initialize Google Drive service in background (non-blocking)
-    // This allows the server to start responding immediately
-    setImmediate(async () => {
+
       try {
-        console.log('🚀 STARTUP: Initializing Google Drive service in background...');
         const googleDriveService = require('./services/googleDriveOAuth.service');
-        console.log('🚀 STARTUP: Google Drive service module loaded');
-        
-        const initialized = await googleDriveService.initialize();
-        console.log('🚀 STARTUP: Google Drive service initialization result:', initialized);
-        
-        if (initialized) {
-          console.log('✅ STARTUP: Google Drive service initialized successfully!');
-          
-          // Check service status
-          const status = await googleDriveService.getServiceStatus();
-          console.log('📊 STARTUP: Google Drive service status:', status);
-        } else {
-          console.log('⚠️ STARTUP: Google Drive service initialization failed - manual authorization may be required');
-        }
-      } catch (error) {
-        console.log('❌ STARTUP: Google Drive service initialization error:', (error as Error).message);
-        console.log('❌ STARTUP: Error stack:', (error as Error).stack);
+        await googleDriveService.initialize();
+        startupDiagnostics.googleDrive.ready = !!googleDriveService.initialized;
+      } catch {
+        startupDiagnostics.googleDrive.ready = false;
+      }
+      startupDiagnostics.googleDrive.initComplete = true;
+
+      const verbose =
+        process.env.LOG_VERBOSE === '1' ||
+        process.env.LOG_VERBOSE === 'true';
+      if (verbose) {
+        console.log(
+          `Services: email SMTP @ startup=${startupDiagnostics.email.smtpVerify} · Google Drive ${startupDiagnostics.googleDrive.ready ? 'ready' : 'not ready'}`
+        );
       }
     });
-    
+
     // Handle server errors
-    server.on('error', (error: NodeJS.ErrnoException) => {
-      if (error.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${PORT} is already in use`);
-        console.error(`❌ Please check if another process is using this port`);
-      } else {
-        console.error(`❌ Server error:`, error);
-      }
+    server.on('error', () => {
       process.exit(1);
     });
-  } catch (error) {
-    console.error('❌ MySQL connection failed:', error);
+  } catch {
     process.exit(1);
   }
 };

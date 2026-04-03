@@ -16,8 +16,6 @@ class GoogleDriveOAuthService {
         return true;
       }
 
-      console.log('🔄 Initializing Google Drive service...');
-      
       // Initialize token service first
       const tokenServiceInitialized = await tokenService.initialize();
       if (!tokenServiceInitialized) {
@@ -38,10 +36,8 @@ class GoogleDriveOAuthService {
       this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
       
       this.initialized = true;
-      console.log('✅ Google Drive service initialized successfully');
       return true;
-    } catch (error) {
-      console.error('❌ Error initializing Google Drive OAuth:', error);
+    } catch (_error) {
       this.initialized = false;
       return false;
     }

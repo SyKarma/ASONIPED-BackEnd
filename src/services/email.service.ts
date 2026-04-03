@@ -30,40 +30,15 @@ export class EmailService {
     const smtpPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587');
     const smtpSecure = process.env.SMTP_SECURE === 'true' || false;
     
-    // Store original password for logging
-    const originalPassword = smtpPass;
-    
     // Remove spaces from password (common issue with Gmail App Passwords)
     if (smtpPass) {
       smtpPass = smtpPass.trim().replace(/\s+/g, '');
-    }
-    
-    // Log email service configuration (without password)
-    console.log('📧 Email Service Configuration:');
-    console.log(`   Host: ${smtpHost}`);
-    console.log(`   Port: ${smtpPort}${smtpHost.includes('gmail.com') && smtpPort === 587 ? ' (will use 465 for Railway compatibility)' : ''}`);
-    console.log(`   Secure: ${smtpSecure}${smtpHost.includes('gmail.com') && smtpPort === 587 ? ' (will use true for Railway compatibility)' : ''}`);
-    console.log(`   User: ${smtpUser || 'NOT SET'}`);
-    console.log(`   Password: ${smtpPass ? `***SET*** (${smtpPass.length} chars)` : 'NOT SET'}`);
-    
-    if (!smtpUser || !smtpPass) {
-      console.error('❌ Email service configuration incomplete: SMTP_USER and SMTP_PASS must be set');
-    } else if (originalPassword && originalPassword.trim() !== smtpPass) {
-      console.warn('⚠️ WARNING: Password contained spaces and was cleaned.');
-      console.warn('⚠️ Gmail App Passwords should not have spaces. If authentication fails, ensure SMTP_PASS is a 16-character App Password without spaces.');
-    } else if (smtpPass.length !== 16 && smtpHost.includes('gmail.com')) {
-      console.warn('⚠️ WARNING: Gmail App Passwords are typically 16 characters long.');
-      console.warn('⚠️ If authentication fails, verify that SMTP_PASS is a Gmail App Password, not your regular password.');
     }
     
     // For Railway and cloud environments, prefer port 465 with SSL
     // Railway often blocks port 587, but 465 usually works
     const actualPort = smtpHost.includes('gmail.com') && smtpPort === 587 ? 465 : smtpPort;
     const actualSecure = smtpHost.includes('gmail.com') && smtpPort === 587 ? true : smtpSecure;
-    
-    if (smtpHost.includes('gmail.com') && smtpPort === 587) {
-      console.warn('⚠️ Using port 465 with SSL instead of 587 (TLS) for better Railway compatibility');
-    }
     
     this.transporter = nodemailer.createTransport({
       host: smtpHost,
@@ -652,17 +627,12 @@ export class EmailService {
   // Test email service connection
   async testConnection(): Promise<{ success: boolean; error?: string; details?: any }> {
     try {
-      console.log('🔍 Testing email service connection...');
-      // Use the existing transporter (it already has proper timeouts configured)
       await this.transporter.verify();
-      console.log('✅ Email service connection successful');
       return { success: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorCode = (error as any)?.code;
-      console.error('❌ Email service connection failed:', errorMessage);
-      console.error('   Error code:', errorCode);
-      
+
       let details: any = {
         code: errorCode,
         message: errorMessage

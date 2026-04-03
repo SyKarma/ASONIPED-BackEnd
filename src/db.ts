@@ -18,10 +18,9 @@ if (process.env.MYSQL_PUBLIC_URL) {
     if (match) {
       dbHost = match[3]; // host (e.g., turntable.proxy.rlwy.net)
       dbPort = Number(match[4]); // port
-      console.log('✅ Using MYSQL_PUBLIC_URL for database connection');
     }
-  } catch (e) {
-    console.warn('⚠️ Could not parse MYSQL_PUBLIC_URL:', e);
+  } catch {
+    // ignore parse errors; fall through to other env sources
   }
 }
 
@@ -38,17 +37,13 @@ if (!dbHost && process.env.MYSQL_URL) {
       if (hostname.includes('proxy.rlwy.net') || hostname.includes('turntable.proxy.rlwy.net')) {
         dbHost = hostname;
         dbPort = Number(match[4]);
-        console.log('✅ Using MYSQL_URL (public) for database connection');
       } else if (hostname.includes('railway.internal')) {
-        // Only use internal URL if public URL is not available
-        console.warn('⚠️ MYSQL_URL uses railway.internal - this may not be available');
-        console.warn('⚠️ Consider using MYSQL_PUBLIC_URL instead');
         dbHost = hostname;
         dbPort = Number(match[4]);
       }
     }
-  } catch (e) {
-    console.warn('⚠️ Could not parse MYSQL_URL');
+  } catch {
+    // ignore parse errors
   }
 }
 
@@ -66,7 +61,7 @@ if (dbHost && dbHost.includes('proxy.rlwy.net')) {
         // Default to 10170 for Railway public MySQL
         dbPort = 10170;
       }
-    } catch (e) {
+    } catch {
       // Default to 10170 for Railway public MySQL
       dbPort = 10170;
     }
@@ -74,34 +69,6 @@ if (dbHost && dbHost.includes('proxy.rlwy.net')) {
     // Default to 10170 for Railway public MySQL when MYSQL_PUBLIC_URL is not available
     dbPort = 10170;
   }
-}
-
-// Validate required environment variables
-if (!process.env.DB_HOST) {
-  console.error('⚠️ WARNING: DB_HOST is not set! The connection will attempt to use localhost.');
-  console.error('⚠️ Please configure DB_HOST in Railway environment variables.');
-}
-
-if (!process.env.DB_USER) {
-  console.error('⚠️ WARNING: DB_USER is not set!');
-}
-
-if (!process.env.DB_PASSWORD) {
-  console.error('⚠️ WARNING: DB_PASSWORD is not set!');
-}
-
-if (!process.env.DB_NAME) {
-  console.error('⚠️ WARNING: DB_NAME is not set!');
-}
-
-// Log database configuration (without password)
-console.log('🗄️ Database Configuration:');
-console.log(`   Host: ${dbHost || 'not set (will use DB_HOST)'}`);
-console.log(`   Port: ${dbPort || 'not set (will use DB_PORT or 3306)'}`);
-console.log(`   Database: ${process.env.DB_NAME || 'not set'}`);
-console.log(`   User: ${process.env.DB_USER || 'not set'}`);
-if (dbHost && dbHost.includes('railway.internal')) {
-  console.warn('   ⚠️ Using railway.internal - if connection fails, ensure MYSQL_PUBLIC_URL is set');
 }
 
 export const db = mysql.createPool({

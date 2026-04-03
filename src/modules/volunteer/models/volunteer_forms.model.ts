@@ -96,6 +96,19 @@ export const deleteVolunteer = async (id: number): Promise<void> => {
   await db.query('DELETE FROM volunteers WHERE id = ?', [id]);
 };
 
+// Remove volunteer enrollment row from the admin-facing `volunteers` table.
+// We match by email + volunteer_option_id because the admin table doesn't store user_id.
+export const deleteVolunteerEnrollmentByEmailAndOption = async (
+  email: string,
+  volunteerOptionId: number
+): Promise<void> => {
+  if (!email) return;
+  await db.query('DELETE FROM volunteers WHERE email = ? AND volunteer_option_id = ?', [
+    email,
+    volunteerOptionId,
+  ]);
+};
+
 // Find existing volunteer record by email and option to avoid duplicates
 export const findVolunteerByEmailAndOption = async (
   email: string,

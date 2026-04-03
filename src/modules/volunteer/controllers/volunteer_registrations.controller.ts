@@ -86,9 +86,25 @@ export const cancelVolunteerRegistration = async (req: Request, res: Response): 
     // Cancel the registration
     await VolunteerOptionsModel.cancelVolunteerRegistration(userId, volunteer_option_id);
 
+    // Keep admin enrollment list in sync:
+    // `volunteer_registrations` is the source of truth for enrollment state,
+    // but the admin "enrollments/forms view" reads from the `volunteers` table.
+    try {
+      const { getUserById } = await import('../../user/models/user.model');
+      const { deleteVolunteerEnrollmentByEmailAndOption } = await import('../models/volunteer_forms.model');
+      const user = await getUserById(userId);
+      if (user?.email) {
+        await deleteVolunteerEnrollmentByEmailAndOption(user.email, volunteer_option_id);
+      }
+    } catch (syncError) {
+      // Don't fail the cancel flow if the admin-sync fails
+    }
+
     // Clear volunteer options cache to refresh registration status
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey(userId));
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey()); // Clear general cache too
+    // Also invalidate cached volunteers list used in admin enrollment pages
+    volunteerCache.invalidateVolunteers();
 
     // Get updated spots info
     const updatedSpotsInfo = await VolunteerOptionsModel.getAvailableSpots(volunteer_option_id);

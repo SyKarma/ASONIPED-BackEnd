@@ -239,7 +239,7 @@ export const getCalendarActivitiesByMonth = async (year: number, month: number):
 export interface RecentActivity {
   id: string;
   title: string;
-  type: 'expediente' | 'ticket' | 'taller' | 'voluntario';
+  type: 'expediente' | 'ticket' | 'taller' | 'voluntario' | 'propuesta_voluntariado';
   user?: string;
   workshop?: string;
   event?: string;
@@ -307,6 +307,20 @@ export const getRecentActivities = async (limit: number = 10): Promise<RecentAct
       LEFT JOIN users u ON vr.user_id = u.id
       WHERE vr.registration_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         AND vr.status = 'registered'
+      
+      UNION ALL
+      
+      SELECT 
+        CONCAT('propuesta-vol-', vop.id) as id,
+        CONCAT('Nueva propuesta de voluntariado: ', vop.title) as title,
+        'propuesta_voluntariado' as type,
+        COALESCE(u.full_name, 'Usuario') as user,
+        NULL as workshop,
+        NULL as event,
+        vop.created_at as timestamp
+      FROM volunteer_option_proposals vop
+      LEFT JOIN users u ON vop.user_id = u.id
+      WHERE vop.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
       
       ORDER BY timestamp DESC
       LIMIT ?

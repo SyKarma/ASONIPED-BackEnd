@@ -54,3 +54,19 @@ CREATE TABLE landing_Volunteer (
   texto_boton VARCHAR(100) NOT NULL,
   color_boton VARCHAR(20) NOT NULL
 );
+
+-- Testimonios / Historias de vida (landing)
+CREATE TABLE landing_historias_component (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(150) NOT NULL,
+  descripcion TEXT NOT NULL,
+  color_titulo VARCHAR(20) NOT NULL DEFAULT '#ea580c'
+);
+
+CREATE TABLE landing_historias_item (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(255) NOT NULL,
+  historia TEXT NOT NULL,
+  video_url VARCHAR(500) NULL,
+  orden INT NOT NULL DEFAULT 0
+);

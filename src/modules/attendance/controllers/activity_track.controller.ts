@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import * as ActivityTrackModel from '../models/activity_track.model';
 import * as AttendanceRecordModel from '../models/attendance_record.model';
+import {
+  buildParkingLinkSegment,
+  currentParkingWindowId,
+  parkingWindowExpiresAt,
+} from '../utils/parking_public_link';
 
 // Create a new activity track
 export const createActivityTrack = async (req: Request, res: Response): Promise<void> => {
@@ -12,7 +17,7 @@ export const createActivityTrack = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const { name, description, event_date, event_time, location, status } = req.body;
+    const { name, description, event_date, event_time, location, status, parking_enabled } = req.body;
 
     // Validate required fields
     if (!name || !event_date) {
@@ -43,14 +48,19 @@ export const createActivityTrack = async (req: Request, res: Response): Promise<
       event_time,
       location,
       status: status || 'active',
+      parking_enabled: !!parking_enabled,
       created_by: userId
     };
 
     const activityTrackId = await ActivityTrackModel.createActivityTrack(activityTrackData);
 
+    const created = await ActivityTrackModel.getActivityTrackById(activityTrackId);
+
     res.status(201).json({
       message: 'Activity track created successfully',
-      activity_track_id: activityTrackId
+      activity_track_id: activityTrackId,
+      parking_enabled: !!created?.parking_enabled,
+      parking_public_token: created?.parking_public_token || null,
     });
   } catch (err) {
     res.status(500).json({
@@ -68,11 +78,20 @@ export const getActivityTracks = async (req: Request, res: Response): Promise<vo
     const status = req.query.status as string | undefined;
     const createdBy = req.query.createdBy ? parseInt(req.query.createdBy as string) : undefined;
 
+    const includeArchived =
+      req.query.includeArchived === 'true' || req.query.includeArchived === '1';
+
+    const searchRaw = req.query.search;
+    const search =
+      typeof searchRaw === 'string' && searchRaw.trim() ? searchRaw.trim() : undefined;
+
     const { activityTracks, total } = await ActivityTrackModel.getActivityTracks(
       page,
       limit,
       status,
-      createdBy
+      createdBy,
+      includeArchived,
+      search
     );
 
     res.json({
@@ -82,8 +101,51 @@ export const getActivityTracks = async (req: Request, res: Response): Promise<vo
       limit,
       totalPages: Math.ceil(total / limit)
     });
-  } catch {
-    res.status(500).json({ error: 'Error getting activity tracks' });
+  } catch (err) {
+    console.error('getActivityTracks', err);
+    res.status(500).json({
+      error: 'Error getting activity tracks',
+      details: (err as Error).message,
+    });
+  }
+};
+
+/** Authenticated: current time-limited parking URL segment + expiry (6h windows). */
+export const getActivityParkingPublicLink = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id)) {
+      res.status(400).json({ error: 'Invalid activity track ID' });
+      return;
+    }
+
+    const track = await ActivityTrackModel.getActivityTrackById(id);
+    if (!track) {
+      res.status(404).json({ error: 'Activity track not found' });
+      return;
+    }
+    if (!track.parking_enabled || !track.parking_public_token) {
+      res.status(400).json({ error: 'Estacionamiento no habilitado para esta actividad' });
+      return;
+    }
+    if ((track as { archived?: boolean }).archived) {
+      res.status(400).json({ error: 'Actividad archivada' });
+      return;
+    }
+
+    const w = currentParkingWindowId();
+    const token = buildParkingLinkSegment(track.id!, w, track.parking_public_token);
+    const expiresAt = parkingWindowExpiresAt(w).toISOString();
+    res.json({ token, expiresAt });
+  } catch (err) {
+    console.error('getActivityParkingPublicLink', err);
+    res.status(500).json({ error: 'Error al generar el enlace' });
   }
 };
 
@@ -120,7 +182,13 @@ export const updateActivityTrack = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const { name, description, event_date, event_time, location, status } = req.body;
+    const { name, description, event_date, event_time, location, status, parking_enabled } = req.body;
+
+    const existing = await ActivityTrackModel.getActivityTrackById(id);
+    if (!existing) {
+      res.status(404).json({ error: 'Activity track not found' });
+      return;
+    }
 
     // Validate date format if provided
     if (event_date) {
@@ -140,7 +208,7 @@ export const updateActivityTrack = async (req: Request, res: Response): Promise<
       }
     }
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (event_date !== undefined) updateData.event_date = event_date;
@@ -148,11 +216,78 @@ export const updateActivityTrack = async (req: Request, res: Response): Promise<
     if (location !== undefined) updateData.location = location;
     if (status !== undefined) updateData.status = status;
 
+    if (parking_enabled !== undefined) {
+      const enabled = !!parking_enabled;
+      updateData.parking_enabled = enabled;
+      if (enabled) {
+        if (!existing.parking_public_token) {
+          updateData.parking_public_token = ActivityTrackModel.generateParkingPublicToken();
+        }
+      } else {
+        updateData.parking_public_token = null;
+      }
+    }
+
     await ActivityTrackModel.updateActivityTrack(id, updateData);
 
     res.json({ message: 'Activity track updated successfully' });
   } catch {
     res.status(500).json({ error: 'Error updating activity track' });
+  }
+};
+
+/** Soft-hide: keep row, exclude from default lists and public parking */
+export const archiveActivityTrack = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id)) {
+      res.status(400).json({ error: 'Invalid activity track ID' });
+      return;
+    }
+    const existing = await ActivityTrackModel.getActivityTrackById(id);
+    if (!existing) {
+      res.status(404).json({ error: 'Activity track not found' });
+      return;
+    }
+    if (existing.archived) {
+      res.status(400).json({ error: 'La actividad ya está archivada' });
+      return;
+    }
+    await ActivityTrackModel.setActivityTrackArchived(id, true);
+    res.json({ message: 'Actividad archivada' });
+  } catch (err) {
+    console.error('archiveActivityTrack', err);
+    res.status(500).json({
+      error: 'Error al archivar la actividad',
+      details: (err as Error).message,
+    });
+  }
+};
+
+export const unarchiveActivityTrack = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id)) {
+      res.status(400).json({ error: 'Invalid activity track ID' });
+      return;
+    }
+    const existing = await ActivityTrackModel.getActivityTrackById(id);
+    if (!existing) {
+      res.status(404).json({ error: 'Activity track not found' });
+      return;
+    }
+    if (!existing.archived) {
+      res.status(400).json({ error: 'La actividad no está archivada' });
+      return;
+    }
+    await ActivityTrackModel.setActivityTrackArchived(id, false);
+    res.json({ message: 'Actividad restaurada' });
+  } catch (err) {
+    console.error('unarchiveActivityTrack', err);
+    res.status(500).json({
+      error: 'Error al restaurar la actividad',
+      details: (err as Error).message,
+    });
   }
 };
 
@@ -194,6 +329,19 @@ export const startQRScanning = async (req: Request, res: Response): Promise<void
     // Check if activity track is active
     if (activityTrack.status !== 'active') {
       res.status(400).json({ error: 'Only active activity tracks can have QR scanning enabled' });
+      return;
+    }
+
+    if (activityTrack.parking_enabled) {
+      res.status(400).json({
+        error:
+          'El escaneo QR de beneficiarios no aplica a actividades con registro de estacionamiento; use la lista de asistencia en otra actividad o desactive estacionamiento en la actividad.',
+      });
+      return;
+    }
+
+    if (activityTrack.archived) {
+      res.status(400).json({ error: 'No se puede escanear en una actividad archivada; restáurala primero.' });
       return;
     }
 

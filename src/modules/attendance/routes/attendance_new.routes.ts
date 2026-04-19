@@ -2,6 +2,7 @@ import express from 'express';
 import activityTrackRoutes from './activity_track.routes';
 import attendanceRecordRoutes from './attendance_record.routes';
 import attendanceAnalyticsRoutes from './attendance_analytics.routes';
+import parkingRoutes from './parking.routes';
 import { authenticateToken } from '../../../middleware/auth.middleware';
 
 const router = express.Router();
@@ -16,7 +17,8 @@ router.get('/test', (req: any, res: any) => res.json({
   }
 }));
 
-// Mount sub-routes
+// Mount sub-routes (parking first: paths under /activity-tracks/... must win over /activity-tracks/:id)
+router.use(parkingRoutes);
 router.use('/activity-tracks', activityTrackRoutes);
 router.use('/attendance-records', attendanceRecordRoutes);
 router.use('/analytics', attendanceAnalyticsRoutes);

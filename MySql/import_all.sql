@@ -609,6 +609,21 @@ CREATE TABLE landing_Volunteer (
   color_boton VARCHAR(20) NOT NULL
 );
 
+CREATE TABLE landing_historias_component (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(150) NOT NULL,
+  descripcion TEXT NOT NULL,
+  color_titulo VARCHAR(20) NOT NULL DEFAULT '#ea580c'
+);
+
+CREATE TABLE landing_historias_item (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(255) NOT NULL,
+  historia TEXT NOT NULL,
+  video_url VARCHAR(500) NULL,
+  orden INT NOT NULL DEFAULT 0
+);
+
 -- Landing indexes
 CREATE INDEX idx_titulo_card ON landing_donaciones_card (titulo_card);
 CREATE INDEX idx_descripcion_card ON landing_donaciones_card (descripcion_card(255));

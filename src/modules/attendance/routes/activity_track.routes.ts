@@ -14,6 +14,15 @@ router.get('/upcoming', authenticateToken, ActivityTrackController.getUpcomingAc
 router.get('/date-range', authenticateToken, ActivityTrackController.getActivityTracksByDateRange); // Get activity tracks by date range
 router.get('/active-scanning', authenticateToken, ActivityTrackController.getActiveScanningActivityTrack); // Get currently active scanning activity track
 
+router.put('/:id/archive', authenticateToken, ActivityTrackController.archiveActivityTrack);
+router.put('/:id/unarchive', authenticateToken, ActivityTrackController.unarchiveActivityTrack);
+
+router.get(
+  '/:id/parking-link',
+  authenticateToken,
+  ActivityTrackController.getActivityParkingPublicLink
+);
+
 router.get('/:id', authenticateToken, ActivityTrackController.getActivityTrackById); // Get activity track by ID
 router.put('/:id', authenticateToken, ActivityTrackController.updateActivityTrack); // Update activity track
 router.delete('/:id', authenticateToken, ActivityTrackController.deleteActivityTrack); // Delete activity track

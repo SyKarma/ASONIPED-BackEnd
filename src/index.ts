@@ -40,6 +40,8 @@ import aboutSectionRoutes from './modules/landing/routes/About-section.routes';
 import LandingDonacionesComponent  from './modules/landing/routes/landing-donaciones-component.routes';
 import LandingDonacionesCard  from './modules/landing/routes/landing-donaciones-card.routes';
 import landingVolunteerRoutes from './modules/landing/routes/landing-volunteer.routes';
+import landingHistoriasComponentRoutes from './modules/landing/routes/landing-historias-component.routes';
+import landingHistoriasItemRoutes from './modules/landing/routes/landing-historias-item.routes';
 import googleDriveRoutes from './modules/user/routes/googleDrive.routes';
 
 // Load environment variables
@@ -338,6 +340,8 @@ app.use('/api/about-section', aboutSectionRoutes);
 app.use('/api/landing-donaciones-card', LandingDonacionesCard);
 app.use('/api/landing-donaciones-component', LandingDonacionesComponent);
 app.use('/api/landing-volunteer', landingVolunteerRoutes);
+app.use('/api/landing-historias-component', landingHistoriasComponentRoutes);
+app.use('/api/landing-historias-item', landingHistoriasItemRoutes);
 app.use('/admin/google-drive', googleDriveRoutes);
 
 

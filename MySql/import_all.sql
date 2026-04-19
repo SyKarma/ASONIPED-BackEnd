@@ -524,15 +524,20 @@ CREATE TABLE activity_tracks (
   location VARCHAR(255),
   status ENUM('active', 'inactive', 'completed') DEFAULT 'active',
   scanning_active BOOLEAN DEFAULT FALSE,
+  parking_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  parking_public_token VARCHAR(64) NULL,
   created_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+  archived TINYINT(1) NOT NULL DEFAULT 0,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_activity_tracks_parking_token (parking_public_token)
 );
 
 CREATE INDEX idx_activity_tracks_date ON activity_tracks(event_date);
 CREATE INDEX idx_activity_tracks_status ON activity_tracks(status);
 CREATE INDEX idx_activity_tracks_created_by ON activity_tracks(created_by);
+CREATE INDEX idx_activity_tracks_archived ON activity_tracks(archived);
 
 CREATE TABLE attendance_records (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -559,6 +564,23 @@ CREATE INDEX idx_attendance_records_record_id ON attendance_records(record_id);
 CREATE INDEX idx_attendance_records_type ON attendance_records(attendance_type);
 CREATE INDEX idx_attendance_records_created_by ON attendance_records(created_by);
 CREATE INDEX idx_attendance_records_scanned_at ON attendance_records(scanned_at);
+
+CREATE TABLE activity_parking_registrations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  activity_track_id INT NOT NULL,
+  plate_raw VARCHAR(32) NOT NULL,
+  plate_normalized VARCHAR(32) NOT NULL,
+  full_name VARCHAR(255) NULL,
+  cedula VARCHAR(50) NULL,
+  phone VARCHAR(30) NULL,
+  source ENUM('public_link', 'admin') NOT NULL,
+  created_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (activity_track_id) REFERENCES activity_tracks(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE KEY uq_parking_activity_plate (activity_track_id, plate_normalized),
+  INDEX idx_parking_activity (activity_track_id)
+);
 
 -- ============================================
 -- 8. LANDING TABLES

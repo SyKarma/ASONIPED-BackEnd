@@ -9,7 +9,7 @@ export interface User {
   full_name: string;
   phone?: string;
   status?: 'active' | 'inactive';
-  email_verified?: boolean;
+  email_verified?: boolean | 0 | 1;
   email_verification_token?: string;
   created_at?: Date;
   updated_at?: Date;
@@ -47,7 +47,16 @@ export const createUser = async (userData: Omit<User, 'id' | 'created_at' | 'upd
   
   const [result] = await db.query(
     'INSERT INTO users (username, email, password_hash, full_name, phone, status, email_verified, email_verification_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [userInfo.username, userInfo.email, password_hash, userInfo.full_name, userInfo.phone, userInfo.status || 'active', false, null]
+    [
+      userInfo.username,
+      userInfo.email,
+      password_hash,
+      userInfo.full_name,
+      userInfo.phone,
+      userInfo.status || 'active',
+      userInfo.email_verified ?? false,
+      userInfo.email_verification_token ?? null
+    ]
   );
   
   return (result as any).insertId;

@@ -3,6 +3,7 @@ import { db } from '../../../db';
 
 /** Only cache `true` so adding the column via migration is picked up without restart */
 let cachedArchivedColumnExists: boolean | null = null;
+let cachedRepeatAttendanceColumnsExist: boolean | null = null;
 
 export async function hasActivityTracksArchivedColumn(): Promise<boolean> {
   if (cachedArchivedColumnExists === true) {
@@ -59,6 +60,49 @@ export async function ensureActivityTracksArchivedColumn(): Promise<void> {
   cachedArchivedColumnExists = true;
 }
 
+export async function hasActivityTracksRepeatAttendanceColumns(): Promise<boolean> {
+  if (cachedRepeatAttendanceColumnsExist === true) {
+    return true;
+  }
+  try {
+    const [rows] = (await db.query(
+      `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'activity_tracks'
+         AND COLUMN_NAME IN ('repeat_attendance_enabled', 'repeat_attendance_cooldown_hours')`
+    )) as [Array<{ cnt: number }>, unknown];
+    const exists = (rows?.[0]?.cnt ?? 0) >= 2;
+    if (exists) cachedRepeatAttendanceColumnsExist = true;
+    return exists;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Adds repeat attendance settings columns if missing (needs ALTER).
+ */
+export async function ensureActivityTracksRepeatAttendanceColumns(): Promise<void> {
+  if (await hasActivityTracksRepeatAttendanceColumns()) return;
+  try {
+    await db.query(
+      `ALTER TABLE activity_tracks
+       ADD COLUMN repeat_attendance_enabled TINYINT(1) NOT NULL DEFAULT 0,
+       ADD COLUMN repeat_attendance_cooldown_hours INT NULL`
+    );
+  } catch (e: unknown) {
+    const err = e as { errno?: number; code?: string };
+    if (err.errno === 1060 || err.code === 'ER_DUP_FIELDNAME') {
+      cachedRepeatAttendanceColumnsExist = true;
+      return;
+    }
+    throw new Error(
+      `No se pudo crear activity_tracks.repeat_attendance_* (se requiere permiso ALTER o ejecutar la migración SQL). ${(e as Error).message}`
+    );
+  }
+  cachedRepeatAttendanceColumnsExist = true;
+}
+
 export function generateParkingPublicToken(): string {
   return crypto.randomBytes(24).toString('hex');
 }
@@ -74,6 +118,10 @@ export interface ActivityTrack {
   scanning_active?: boolean;
   parking_enabled?: boolean;
   parking_public_token?: string | null;
+  /** Allow multiple beneficiario attendance scans within same activity */
+  repeat_attendance_enabled?: boolean;
+  /** Cooldown in hours between beneficiario scans (3/6/12/24) */
+  repeat_attendance_cooldown_hours?: 3 | 6 | 12 | 24 | number | null;
   created_by: number;
   created_at?: Date;
   updated_at?: Date;
@@ -96,6 +144,16 @@ export const createActivityTrack = async (activityTrack: Omit<ActivityTrack, 'id
     : null;
 
   const hasArchived = await hasActivityTracksArchivedColumn();
+  const hasRepeat = await hasActivityTracksRepeatAttendanceColumns();
+  if (!hasRepeat) {
+    // Try to add columns when possible so feature works without manual migration
+    try {
+      await ensureActivityTracksRepeatAttendanceColumns();
+    } catch {
+      // ignore; DB user might not have ALTER
+    }
+  }
+  const hasRepeatAfter = await hasActivityTracksRepeatAttendanceColumns();
   const values = [
     activityTrack.name,
     activityTrack.description || null,
@@ -106,20 +164,30 @@ export const createActivityTrack = async (activityTrack: Omit<ActivityTrack, 'id
     activityTrack.scanning_active || false,
     parkingEnabled,
     parkingToken,
+    !!activityTrack.repeat_attendance_enabled,
+    activityTrack.repeat_attendance_enabled ? (activityTrack.repeat_attendance_cooldown_hours ?? null) : null,
     activityTrack.created_by,
   ];
 
-  const [result] = hasArchived
-    ? await db.query(
-        `INSERT INTO activity_tracks (name, description, event_date, event_time, location, status, scanning_active, parking_enabled, parking_public_token, created_by, archived)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-        values
-      )
-    : await db.query(
-        `INSERT INTO activity_tracks (name, description, event_date, event_time, location, status, scanning_active, parking_enabled, parking_public_token, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        values
-      );
+  const baseCols =
+    'name, description, event_date, event_time, location, status, scanning_active, parking_enabled, parking_public_token';
+  const repeatCols = hasRepeatAfter ? ', repeat_attendance_enabled, repeat_attendance_cooldown_hours' : '';
+  const creatorCol = ', created_by';
+  const archivedCols = hasArchived ? ', archived' : '';
+
+  const placeholdersBase = '?, ?, ?, ?, ?, ?, ?, ?, ?';
+  const placeholdersRepeat = hasRepeatAfter ? ', ?, ?' : '';
+  const placeholdersCreator = ', ?';
+  const placeholdersArchived = hasArchived ? ', 0' : '';
+
+  const cols = `${baseCols}${repeatCols}${creatorCol}${archivedCols}`;
+  const placeholders = `${placeholdersBase}${placeholdersRepeat}${placeholdersCreator}${placeholdersArchived}`;
+
+  const insertValues = hasRepeatAfter ? values : values.filter((_, idx) => idx !== 9 && idx !== 10);
+  const [result] = await db.query(
+    `INSERT INTO activity_tracks (${cols}) VALUES (${placeholders})`,
+    insertValues
+  );
   return (result as any).insertId;
 };
 
@@ -229,7 +297,27 @@ export const getActivityTrackById = async (id: number): Promise<ActivityTrackWit
 
 // Update activity track
 export const updateActivityTrack = async (id: number, data: Partial<ActivityTrack>): Promise<void> => {
-  const fields = Object.keys(data).map(key => `${key} = ?`).join(', ');
+  // If repeat attendance fields are present, ensure columns exist (or drop them)
+  if (
+    'repeat_attendance_enabled' in data ||
+    'repeat_attendance_cooldown_hours' in data
+  ) {
+    if (!(await hasActivityTracksRepeatAttendanceColumns())) {
+      try {
+        await ensureActivityTracksRepeatAttendanceColumns();
+      } catch {
+        // ignore
+      }
+    }
+    if (!(await hasActivityTracksRepeatAttendanceColumns())) {
+      // Columns still unavailable; drop fields so update doesn't fail
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { repeat_attendance_enabled, repeat_attendance_cooldown_hours, ...rest } = data;
+      data = rest;
+    }
+  }
+
+  const fields = Object.keys(data).map((key) => `${key} = ?`).join(', ');
   const values = Object.values(data);
   
   if (fields.length === 0) return;

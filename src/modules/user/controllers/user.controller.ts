@@ -70,7 +70,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       phone,
       status: 'active',
       email_verified: false,
-      email_verification_token: null
+      email_verification_token: undefined
     });
 
     // Assign roles if provided
@@ -745,7 +745,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       phone: phone || null,
       status: status || 'active',
       email_verified: true,
-      email_verification_token: null
+      email_verification_token: undefined
     });
 
     // Assign roles if provided, otherwise assign admin role

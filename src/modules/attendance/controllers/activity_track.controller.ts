@@ -17,7 +17,17 @@ export const createActivityTrack = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const { name, description, event_date, event_time, location, status, parking_enabled } = req.body;
+    const {
+      name,
+      description,
+      event_date,
+      event_time,
+      location,
+      status,
+      parking_enabled,
+      repeat_attendance_enabled,
+      repeat_attendance_cooldown_hours,
+    } = req.body;
 
     // Validate required fields
     if (!name || !event_date) {
@@ -49,6 +59,15 @@ export const createActivityTrack = async (req: Request, res: Response): Promise<
       location,
       status: status || 'active',
       parking_enabled: !!parking_enabled,
+      repeat_attendance_enabled: !!repeat_attendance_enabled,
+      repeat_attendance_cooldown_hours:
+        !!repeat_attendance_enabled &&
+        (repeat_attendance_cooldown_hours === 3 ||
+          repeat_attendance_cooldown_hours === 6 ||
+          repeat_attendance_cooldown_hours === 12 ||
+          repeat_attendance_cooldown_hours === 24)
+          ? repeat_attendance_cooldown_hours
+          : null,
       created_by: userId
     };
 
@@ -182,7 +201,17 @@ export const updateActivityTrack = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const { name, description, event_date, event_time, location, status, parking_enabled } = req.body;
+    const {
+      name,
+      description,
+      event_date,
+      event_time,
+      location,
+      status,
+      parking_enabled,
+      repeat_attendance_enabled,
+      repeat_attendance_cooldown_hours,
+    } = req.body;
 
     const existing = await ActivityTrackModel.getActivityTrackById(id);
     if (!existing) {
@@ -226,6 +255,23 @@ export const updateActivityTrack = async (req: Request, res: Response): Promise<
       } else {
         updateData.parking_public_token = null;
       }
+    }
+
+    if (repeat_attendance_enabled !== undefined) {
+      const enabled = !!repeat_attendance_enabled;
+      updateData.repeat_attendance_enabled = enabled;
+      if (enabled) {
+        const hrs = repeat_attendance_cooldown_hours;
+        updateData.repeat_attendance_cooldown_hours =
+          hrs === 3 || hrs === 6 || hrs === 12 || hrs === 24 ? hrs : null;
+      } else {
+        updateData.repeat_attendance_cooldown_hours = null;
+      }
+    } else if (repeat_attendance_cooldown_hours !== undefined) {
+      // Allow updating only cooldown when feature remains enabled
+      const hrs = repeat_attendance_cooldown_hours;
+      updateData.repeat_attendance_cooldown_hours =
+        hrs === 3 || hrs === 6 || hrs === 12 || hrs === 24 ? hrs : null;
     }
 
     await ActivityTrackModel.updateActivityTrack(id, updateData);

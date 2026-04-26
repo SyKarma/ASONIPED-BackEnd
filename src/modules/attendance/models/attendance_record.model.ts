@@ -27,6 +27,16 @@ export interface QRScanData {
   name: string;
 }
 
+export type RepeatAttendancePolicy =
+  | { enabled: false }
+  | { enabled: true; cooldownHours: 3 | 6 | 12 | 24 };
+
+function toCooldownHours(value: unknown): 3 | 6 | 12 | 24 | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (n === 3 || n === 6 || n === 12 || n === 24) return n;
+  return null;
+}
+
 // Create attendance record (for both QR scan and manual entry)
 export const createAttendanceRecord = async (record: Omit<AttendanceRecord, 'id' | 'created_at' | 'updated_at'>): Promise<number> => {
   const [result] = await db.query(
@@ -52,7 +62,8 @@ export const createAttendanceRecord = async (record: Omit<AttendanceRecord, 'id'
 export const processQRScan = async (
   qrData: QRScanData,
   activityTrackId: number,
-  createdBy: number
+  createdBy: number,
+  policy: RepeatAttendancePolicy = { enabled: false }
 ): Promise<AttendanceRecord> => {
   // First, verify the record exists and get the full name
   const [recordRows] = await db.query(
@@ -71,14 +82,24 @@ export const processQRScan = async (
 
   const record = recordRows[0];
 
-  // Check if attendance already exists for this record in this activity track
-  const [existingRows] = await db.query(
-    'SELECT id FROM attendance_records WHERE activity_track_id = ? AND record_id = ? AND attendance_type = "beneficiario"',
-    [activityTrackId, qrData.record_id]
-  ) as [any[], any];
-
-  if (existingRows.length > 0) {
-    throw new Error('Attendance already recorded for this beneficiario in this activity');
+  // Check if attendance already exists (or is within cooldown window)
+  const last = await getBeneficiarioLastAttendance(activityTrackId, qrData.record_id);
+  if (last) {
+    if (!policy.enabled) {
+      throw new Error('Attendance already recorded for this beneficiario in this activity');
+    }
+    const cooldown = toCooldownHours((policy as any).cooldownHours);
+    if (cooldown) {
+      const lastAt = new Date(last.scanned_at);
+      const nextAllowedAt = new Date(lastAt.getTime() + cooldown * 60 * 60 * 1000);
+      if (Date.now() < nextAllowedAt.getTime()) {
+        const nextIso = nextAllowedAt.toISOString();
+        const err = new Error(`Attendance cooldown active until ${nextIso}`);
+        (err as any).code = 'ATTENDANCE_COOLDOWN';
+        (err as any).nextAllowedAt = nextIso;
+        throw err;
+      }
+    }
   }
 
   // Create attendance record
@@ -325,12 +346,40 @@ export const checkBeneficiarioAttendance = async (
   activityTrackId: number,
   recordId: number
 ): Promise<boolean> => {
+  const last = await getBeneficiarioLastAttendance(activityTrackId, recordId);
+  return !!last;
+};
+
+export const getBeneficiarioLastAttendance = async (
+  activityTrackId: number,
+  recordId: number
+): Promise<{ id: number; scanned_at: string } | null> => {
   const [rows] = await db.query(
-    'SELECT id FROM attendance_records WHERE activity_track_id = ? AND record_id = ? AND attendance_type = "beneficiario"',
+    `SELECT id, scanned_at
+     FROM attendance_records
+     WHERE activity_track_id = ?
+       AND record_id = ?
+       AND attendance_type = "beneficiario"
+     ORDER BY scanned_at DESC
+     LIMIT 1`,
     [activityTrackId, recordId]
   ) as [any[], any];
+  return rows.length > 0 ? (rows[0] as { id: number; scanned_at: string }) : null;
+};
 
-  return rows.length > 0;
+export const isBeneficiarioWithinCooldown = async (
+  activityTrackId: number,
+  recordId: number,
+  cooldownHours: 3 | 6 | 12 | 24
+): Promise<{ blocked: boolean; nextAllowedAt?: string }> => {
+  const last = await getBeneficiarioLastAttendance(activityTrackId, recordId);
+  if (!last) return { blocked: false };
+  const lastAt = new Date(last.scanned_at);
+  const nextAllowedAt = new Date(lastAt.getTime() + cooldownHours * 60 * 60 * 1000);
+  if (Date.now() < nextAllowedAt.getTime()) {
+    return { blocked: true, nextAllowedAt: nextAllowedAt.toISOString() };
+  }
+  return { blocked: false };
 };
 
 // Get recent attendance records

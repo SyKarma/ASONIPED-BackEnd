@@ -319,9 +319,9 @@ CREATE INDEX idx_medical_additional_info_disability_data_id ON medical_additiona
 
 CREATE TABLE donations (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  nombre VARCHAR(20) NULL,
-  correo VARCHAR(30) NULL,
-  telefono VARCHAR(9) NULL,
+  nombre VARCHAR(150) NULL,
+  correo VARCHAR(255) NULL,
+  telefono VARCHAR(20) NULL,
   asunto VARCHAR(255) NOT NULL,
   mensaje TEXT NOT NULL,
   aceptacion_privacidad BOOLEAN NOT NULL,

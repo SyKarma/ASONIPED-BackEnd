@@ -120,8 +120,9 @@ export const deleteVolunteerOption = async (req: Request, res: Response): Promis
     const id = parseInt(req.params.id);
     await VolunteerOptionModel.deleteVolunteerOption(id);
     
-    // Invalidate options cache
+    // Invalidate options cache (all + user-specific) so deleted option disappears immediately
     volunteerCache.del(volunteerCache.getVolunteerOptionsKey());
+    volunteerCache.invalidateVolunteers();
     
     res.json({ message: 'Volunteer option deleted' });
   } catch (err) {

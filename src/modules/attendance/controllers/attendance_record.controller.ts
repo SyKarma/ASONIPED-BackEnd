@@ -42,10 +42,16 @@ export const processQRScan = async (req: Request, res: Response): Promise<void> 
     }
 
     // Process the QR scan
+    const activityTrack = await ActivityTrackModel.getActivityTrackById(activityTrackId);
+    const repeatEnabled = !!(activityTrack as any)?.repeat_attendance_enabled;
+    const cooldown = (activityTrack as any)?.repeat_attendance_cooldown_hours;
+    const cooldownHours = (cooldown === 3 || cooldown === 6 || cooldown === 12 || cooldown === 24) ? cooldown : null;
+
     const attendanceRecord = await AttendanceRecordModel.processQRScan(
       qrData,
       activityTrackId,
-      userId
+      userId,
+      repeatEnabled && cooldownHours ? { enabled: true, cooldownHours } : { enabled: false }
     );
 
     res.status(201).json({
@@ -54,6 +60,15 @@ export const processQRScan = async (req: Request, res: Response): Promise<void> 
     });
   } catch (err) {
     if (err instanceof Error) {
+      const anyErr = err as any;
+      if (anyErr?.code === 'ATTENDANCE_COOLDOWN') {
+        res.status(429).json({
+          error: 'Este beneficiario ya fue registrado recientemente para esta actividad.',
+          code: 'ATTENDANCE_COOLDOWN',
+          nextAllowedAt: anyErr.nextAllowedAt,
+        });
+        return;
+      }
       if (err.message.includes('already recorded')) {
         res.status(409).json({ error: err.message });
         return;
@@ -123,15 +138,35 @@ export const createManualAttendance = async (req: Request, res: Response): Promi
 
     // Check for duplicate attendance
     if (attendance_type === 'beneficiario') {
-      const alreadyAttended = await AttendanceRecordModel.checkBeneficiarioAttendance(
-        activity_track_id,
-        record_id
-      );
-      if (alreadyAttended) {
-        res.status(409).json({ 
-          error: 'Attendance already recorded for this beneficiario in this activity' 
-        });
-        return;
+      const repeatEnabled = !!(activityTrack as any)?.repeat_attendance_enabled;
+      const cooldown = (activityTrack as any)?.repeat_attendance_cooldown_hours;
+      const cooldownHours = (cooldown === 3 || cooldown === 6 || cooldown === 12 || cooldown === 24) ? cooldown : null;
+
+      if (repeatEnabled && cooldownHours) {
+        const { blocked, nextAllowedAt } = await AttendanceRecordModel.isBeneficiarioWithinCooldown(
+          activity_track_id,
+          record_id,
+          cooldownHours
+        );
+        if (blocked) {
+          res.status(429).json({
+            error: 'Este beneficiario ya fue registrado recientemente para esta actividad.',
+            code: 'ATTENDANCE_COOLDOWN',
+            nextAllowedAt,
+          });
+          return;
+        }
+      } else {
+        const alreadyAttended = await AttendanceRecordModel.checkBeneficiarioAttendance(
+          activity_track_id,
+          record_id
+        );
+        if (alreadyAttended) {
+          res.status(409).json({
+            error: 'Attendance already recorded for this beneficiario in this activity'
+          });
+          return;
+        }
       }
     }
 

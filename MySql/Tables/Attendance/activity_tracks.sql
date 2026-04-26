@@ -12,10 +12,13 @@ CREATE TABLE activity_tracks (
   created_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+  repeat_attendance_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  repeat_attendance_cooldown_hours INT NULL,
 );
 
 -- Index for better performance on common queries
 CREATE INDEX idx_activity_tracks_date ON activity_tracks(event_date);
 CREATE INDEX idx_activity_tracks_status ON activity_tracks(status);
 CREATE INDEX idx_activity_tracks_created_by ON activity_tracks(created_by);
+CREATE INDEX idx_attendance_records_activity_record_scanned ON attendance_records (activity_track_id, record_id, scanned_at);

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken } from '../../../middleware/auth.middleware';
+import { authenticateAdmin, authenticateToken } from '../../../middleware/auth.middleware';
 import * as VolunteerRegistrationsController from '../controllers/volunteer_registrations.controller';
 
 const router = Router();
@@ -17,7 +17,7 @@ router.post('/cancel', VolunteerRegistrationsController.cancelVolunteerRegistrat
 router.get('/my-registrations', VolunteerRegistrationsController.getUserRegistrations);
 
 // Get registrations for a specific volunteer option (admin only)
-router.get('/volunteer-option/:volunteer_option_id', VolunteerRegistrationsController.getVolunteerRegistrations);
+router.get('/volunteer-option/:volunteer_option_id', authenticateAdmin, VolunteerRegistrationsController.getVolunteerRegistrations);
 
 // Get available spots for a volunteer option
 router.get('/available-spots/:volunteer_option_id', VolunteerRegistrationsController.getAvailableSpots);

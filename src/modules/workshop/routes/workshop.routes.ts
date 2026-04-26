@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getAllWorkshops, getWorkshopById, createWorkshop, updateWorkshop, deleteWorkshop } from '../controllers/workshop.controller';
 import { getAllWorkshopEnrollments, updateWorkshopEnrollmentStatus } from '../controllers/workshop_enrollments.controller';
-import { authenticateToken } from '../../../middleware/auth.middleware';
+import { authenticateAdmin, authenticateToken } from '../../../middleware/auth.middleware';
 
 const router = Router();
 
@@ -9,21 +9,21 @@ const router = Router();
 router.get('/', getAllWorkshops);
 
 // Get all workshop enrollments (admin only) - MUST be before /:id route
-router.get('/enrollments', authenticateToken, getAllWorkshopEnrollments);
+router.get('/enrollments', authenticateAdmin, getAllWorkshopEnrollments);
 
 // Update workshop enrollment status (admin only)
-router.put('/enrollments/:id/status', authenticateToken, updateWorkshopEnrollmentStatus);
+router.put('/enrollments/:id/status', authenticateAdmin, updateWorkshopEnrollmentStatus);
 
 // Get a single workshop by ID (public)
 router.get('/:id', getWorkshopById);
 
 // Create a new workshop (protected)
-router.post('/', authenticateToken, createWorkshop);
+router.post('/', authenticateAdmin, createWorkshop);
 
 // Update a workshop (protected)
-router.put('/:id', authenticateToken, updateWorkshop);
+router.put('/:id', authenticateAdmin, updateWorkshop);
 
 // Delete a workshop (protected)
-router.delete('/:id', authenticateToken, deleteWorkshop);
+router.delete('/:id', authenticateAdmin, deleteWorkshop);
 
 export default router;

@@ -2,7 +2,7 @@ import express from 'express';
 import * as UserController from '../controllers/user.controller';
 import * as PasswordResetController from '../controllers/password_reset.controller';
 import * as StatisticsController from '../controllers/statistics.controller';
-import { authenticateToken } from '../../../middleware/auth.middleware';
+import { authenticateAdmin, authenticateToken } from '../../../middleware/auth.middleware';
 import { forgotPasswordRateLimit } from '../../../middleware/rate_limit.middleware';
 
 const router = express.Router();
@@ -36,13 +36,13 @@ router.put('/me', authenticateToken, UserController.updateMe);
 router.post('/me/password', authenticateToken, UserController.changeMyPassword);
 
 // Administration routes (require admin role)
-router.get('/', authenticateToken, UserController.getAllUsers);
-router.get('/eligible-for-handover', authenticateToken, UserController.getEligibleUsersForHandover);
-router.get('/:id', authenticateToken, UserController.getUserById);
-router.post('/', authenticateToken, UserController.createUser);
-router.put('/:id', authenticateToken, UserController.updateUser);
-router.delete('/:id', authenticateToken, UserController.deleteUser);
-router.post('/assign-role', authenticateToken, UserController.assignRole);
-router.post('/remove-role', authenticateToken, UserController.removeRole);
+router.get('/', authenticateAdmin, UserController.getAllUsers);
+router.get('/eligible-for-handover', authenticateAdmin, UserController.getEligibleUsersForHandover);
+router.get('/:id', authenticateAdmin, UserController.getUserById);
+router.post('/', authenticateAdmin, UserController.createUser);
+router.put('/:id', authenticateAdmin, UserController.updateUser);
+router.delete('/:id', authenticateAdmin, UserController.deleteUser);
+router.post('/assign-role', authenticateAdmin, UserController.assignRole);
+router.post('/remove-role', authenticateAdmin, UserController.removeRole);
 
 export default router;

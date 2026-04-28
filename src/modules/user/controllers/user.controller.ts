@@ -97,7 +97,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       const emailStatus = emailService.instance.getServiceStatus();
       if (!emailStatus.configured) {
         console.error('❌ Email service not configured. Cannot send verification email.');
-        throw new Error('Email service is not configured. Please configure SMTP_USER and SMTP_PASS environment variables.');
+        throw new Error('Email service is not configured. Please configure RESEND_API_KEY and RESEND_FROM environment variables.');
       }
       
       const verificationToken = emailService.instance.generateVerificationToken();

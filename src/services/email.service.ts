@@ -1,5 +1,5 @@
-import nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
+import { Resend } from 'resend';
 
 // Password reset email data
 interface PasswordResetEmail {
@@ -19,53 +19,11 @@ interface EmailVerificationEmail {
 
 // Email service class
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private resend: Resend | null;
 
   constructor() {
-    // Create transporter with Gmail SMTP configuration
-    // Support both SMTP_* (legacy) and EMAIL_* (new) variable names
-    const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER || '';
-    let smtpPass = process.env.EMAIL_PASSWORD || process.env.SMTP_PASS || '';
-    const smtpHost = process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com';
-    const smtpPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587');
-    const smtpSecure = process.env.SMTP_SECURE === 'true' || false;
-    
-    // Remove spaces from password (common issue with Gmail App Passwords)
-    if (smtpPass) {
-      smtpPass = smtpPass.trim().replace(/\s+/g, '');
-    }
-    
-    // For Railway and cloud environments, prefer port 465 with SSL
-    // Railway often blocks port 587, but 465 usually works
-    const actualPort = smtpHost.includes('gmail.com') && smtpPort === 587 ? 465 : smtpPort;
-    const actualSecure = smtpHost.includes('gmail.com') && smtpPort === 587 ? true : smtpSecure;
-    
-    this.transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: actualPort,
-      secure: actualSecure, // true for 465 (SSL), false for 587 (TLS/STARTTLS)
-      auth: {
-        user: smtpUser,
-        pass: smtpPass // Password already cleaned (spaces removed)
-      },
-      // Connection timeout options (important for Railway and cloud environments)
-      connectionTimeout: 10000, // 10 seconds (reduced from 60 for faster failure detection)
-      greetingTimeout: 10000, // 10 seconds
-      socketTimeout: 30000, // 30 seconds
-      // Enable STARTTLS for port 587 (if not using SSL on 465)
-      requireTLS: !actualSecure && actualPort === 587,
-      // Gmail specific options
-      tls: {
-        rejectUnauthorized: false, // Allow self-signed certificates (may be needed for some SMTP servers)
-        minVersion: 'TLSv1.2' // Use modern TLS version
-      },
-      // Debug options (can be enabled for troubleshooting)
-      debug: process.env.NODE_ENV === 'development',
-      logger: process.env.NODE_ENV === 'development'
-    });
-    
-    // Store the cleaned password for reference (but don't expose it)
-    (this.transporter as any)._smtpPass = smtpPass;
+    const apiKey = process.env.RESEND_API_KEY || '';
+    this.resend = apiKey ? new Resend(apiKey) : null;
   }
 
   // Generate secure reset token
@@ -95,16 +53,27 @@ export class EmailService {
   // Send password reset email
   async sendPasswordResetEmail(emailData: PasswordResetEmail): Promise<boolean> {
     try {
-      const mailOptions = {
-        from: `"ASONIPED" <${process.env.EMAIL_USER || process.env.SMTP_USER || ''}>`,
+      if (!this.resend) {
+        console.error('❌ RESEND_API_KEY not configured. Cannot send email.');
+        return false;
+      }
+
+      const from = process.env.RESEND_FROM || '';
+      if (!from) {
+        console.error('❌ RESEND_FROM not configured. Cannot send email.');
+        return false;
+      }
+
+      const result = await this.resend.emails.send({
+        from,
         to: emailData.to,
         subject: 'Recuperación de Contraseña - ASONIPED',
         html: this.getPasswordResetHTMLTemplate(emailData),
-        text: this.getPasswordResetTextTemplate(emailData)
-      };
+        text: this.getPasswordResetTextTemplate(emailData),
+        replyTo: process.env.RESEND_REPLY_TO || undefined,
+      });
 
-      const result = await this.transporter.sendMail(mailOptions);
-      console.log('✅ Password reset email sent successfully:', result.messageId);
+      console.log('✅ Password reset email sent successfully:', (result as any)?.data?.id || result);
       return true;
     } catch (error) {
       console.error('❌ Error sending password reset email:', error);
@@ -114,95 +83,34 @@ export class EmailService {
 
   // Send email verification
   async sendEmailVerification(emailData: EmailVerificationEmail): Promise<boolean> {
-    const maxRetries = 3;
-    let lastError: Error | null = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        if (attempt > 1) {
-          console.log(`🔄 Retry attempt ${attempt}/${maxRetries}...`);
-          // Wait before retry (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-        }
-        
-        // Skip verification on retries to speed up the process
-        if (attempt === 1) {
-          console.log('🔍 Verifying email service connection...');
-          try {
-            await this.transporter.verify();
-            console.log('✅ Email service connection verified');
-          } catch (verifyError) {
-            console.warn('⚠️ Connection verification failed, but attempting to send anyway...');
-            // Continue even if verification fails - sometimes sending works even if verify doesn't
-          }
-        }
-        
-        const fromEmail = process.env.EMAIL_USER || process.env.SMTP_USER || '';
-        if (!fromEmail) {
-          throw new Error('SMTP_USER or EMAIL_USER not configured');
-        }
-        
-        const mailOptions = {
-          from: `"ASONIPED" <${fromEmail}>`,
-          to: emailData.to,
-          subject: 'Verificación de Email - ASONIPED',
-          html: this.getEmailVerificationHTMLTemplate(emailData),
-          text: this.getEmailVerificationTextTemplate(emailData)
-        };
-
-        console.log(`📧 Attempting to send verification email to ${emailData.to} (attempt ${attempt}/${maxRetries})...`);
-        const result = await this.transporter.sendMail(mailOptions);
-        console.log('✅ Email verification sent successfully:', result.messageId);
-        console.log(`   Response: ${result.response}`);
-        return true;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        const errorMessage = lastError.message;
-        const errorCode = (error as any)?.code;
-        
-        console.error(`❌ Error sending email verification (attempt ${attempt}/${maxRetries}):`, errorMessage);
-        console.error('   Error code:', errorCode);
-        
-        // Don't retry on authentication errors
-        if (errorCode === 'EAUTH') {
-          console.error('❌ Authentication failed. This usually means:');
-          console.error('   1. The password is incorrect');
-          console.error('   2. Gmail requires an "App Password" instead of your regular password');
-          console.error('   3. 2-Step Verification must be enabled in your Google account');
-          console.error('   Solution: Generate an App Password at https://myaccount.google.com/apppasswords');
-          throw error; // Don't retry auth errors
-        }
-        
-        // Retry connection errors
-        if (errorCode === 'ECONNECTION' || errorCode === 'ETIMEDOUT' || errorCode === 'ESOCKET') {
-          if (attempt < maxRetries) {
-            console.warn(`⚠️ Connection error, will retry (${attempt}/${maxRetries})...`);
-            continue; // Retry
-          } else {
-            console.error('❌ Connection failed after all retries. This usually means:');
-            console.error('   1. Railway is blocking outbound SMTP connections');
-            console.error('   2. The SMTP server is unreachable');
-            console.error('   3. Try changing SMTP_PORT to 465 and SMTP_SECURE to true');
-            console.error('   Solution: Consider using a transactional email service like:');
-            console.error('   - SendGrid (recommended for Railway) - https://sendgrid.com');
-            console.error('   - Mailgun - https://mailgun.com');
-            console.error('   - AWS SES - https://aws.amazon.com/ses/');
-            console.error('   - Or contact Railway support to allow SMTP outbound connections');
-          }
-        }
-        
-        // Don't retry other errors
-        if (attempt === maxRetries) {
-          if (errorCode === 'EENVELOPE') {
-            console.error('❌ Envelope error. Check the recipient email address.');
-          }
-          throw error;
-        }
+    try {
+      if (!this.resend) {
+        console.error('❌ RESEND_API_KEY not configured. Cannot send email.');
+        return false;
       }
+
+      const from = process.env.RESEND_FROM || '';
+      if (!from) {
+        console.error('❌ RESEND_FROM not configured. Cannot send email.');
+        return false;
+      }
+
+      console.log(`📧 Sending verification email to ${emailData.to} via Resend...`);
+      const result = await this.resend.emails.send({
+        from,
+        to: emailData.to,
+        subject: 'Verificación de Email - ASONIPED',
+        html: this.getEmailVerificationHTMLTemplate(emailData),
+        text: this.getEmailVerificationTextTemplate(emailData),
+        replyTo: process.env.RESEND_REPLY_TO || undefined,
+      });
+
+      console.log('✅ Email verification sent successfully:', (result as any)?.data?.id || result);
+      return true;
+    } catch (error) {
+      console.error('❌ Error sending email verification:', error);
+      return false;
     }
-    
-    // If we get here, all retries failed
-    throw lastError || new Error('Failed to send email after all retries');
   }
 
   // HTML email template
@@ -627,42 +535,26 @@ export class EmailService {
   // Test email service connection
   async testConnection(): Promise<{ success: boolean; error?: string; details?: any }> {
     try {
-      await this.transporter.verify();
-      return { success: true };
+      if (!this.resend) {
+        return {
+          success: false,
+          error: 'RESEND_API_KEY not configured',
+          details: { configured: false },
+        };
+      }
+
+      // Lightweight API call that doesn't send an email.
+      const domains = await (this.resend as any).domains.list?.();
+      return { success: true, details: { domains } };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorCode = (error as any)?.code;
+      const errorCode = (error as any)?.code || (error as any)?.name;
 
       let details: any = {
         code: errorCode,
         message: errorMessage
       };
-      
-      if (errorCode === 'EAUTH') {
-        details = {
-          ...details,
-          solution: 'Gmail requires an App Password. Generate one at https://myaccount.google.com/apppasswords',
-          steps: [
-            'Enable 2-Step Verification in your Google account',
-            'Go to https://myaccount.google.com/apppasswords',
-            'Generate a new app password for "Mail"',
-            'Use that password (16 characters) in SMTP_PASS instead of your regular password'
-          ]
-        };
-      } else if (errorCode === 'ECONNECTION' || errorCode === 'ETIMEDOUT' || errorCode === 'ESOCKET') {
-        details = {
-          ...details,
-          solution: 'Railway may be blocking SMTP connections. Try these solutions:',
-          steps: [
-            'Change SMTP_PORT to 465 and SMTP_SECURE to true in Railway environment variables',
-            'Use a transactional email service like SendGrid (recommended for Railway)',
-            'Contact Railway support to allow outbound SMTP connections',
-            'Or use a cloud email service that provides API access (SendGrid, Mailgun, AWS SES)'
-          ],
-          railwayNote: 'Railway often blocks port 587. Port 465 with SSL usually works better.'
-        };
-      }
-      
+
       return { success: false, error: errorMessage, details };
     }
   }
@@ -670,9 +562,9 @@ export class EmailService {
   // Get service status
   getServiceStatus(): { configured: boolean; host: string; user: string } {
     return {
-      configured: !!((process.env.EMAIL_USER || process.env.SMTP_USER) && (process.env.EMAIL_PASSWORD || process.env.SMTP_PASS)),
-      host: process.env.EMAIL_HOST || process.env.SMTP_HOST || 'gmail',
-      user: process.env.EMAIL_USER || process.env.SMTP_USER || ''
+      configured: !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM),
+      host: 'resend',
+      user: process.env.RESEND_FROM || ''
     };
   }
 }

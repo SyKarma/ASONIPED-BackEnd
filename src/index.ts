@@ -62,11 +62,11 @@ const GIT_SHA =
   process.env.VERCEL_GIT_COMMIT_SHA ||
   null;
 
-type SmtpStartupStatus = 'pending' | 'ok' | 'failed' | 'skipped';
+type EmailStartupStatus = 'pending' | 'ok' | 'failed' | 'skipped';
 
 const startupDiagnostics = {
   email: {
-    smtpVerify: 'pending' as SmtpStartupStatus,
+    providerVerify: 'pending' as EmailStartupStatus,
   },
   googleDrive: {
     initComplete: false,
@@ -214,12 +214,12 @@ async function buildHealthPayload() {
     configured: boolean;
     host: string;
     userSet: boolean;
-    smtpVerifyAtStartup: SmtpStartupStatus;
+    providerVerifyAtStartup: EmailStartupStatus;
   } = {
     configured: false,
     host: '',
     userSet: false,
-    smtpVerifyAtStartup: startupDiagnostics.email.smtpVerify,
+    providerVerifyAtStartup: startupDiagnostics.email.providerVerify,
   };
 
   try {
@@ -229,7 +229,7 @@ async function buildHealthPayload() {
       configured: s.configured,
       host: s.host,
       userSet: !!s.user,
-      smtpVerifyAtStartup: startupDiagnostics.email.smtpVerify,
+      providerVerifyAtStartup: startupDiagnostics.email.providerVerify,
     };
   } catch {
     // keep defaults
@@ -370,12 +370,12 @@ const startServer = async (): Promise<void> => {
         const emailStatus = emailService.instance.getServiceStatus();
         if (emailStatus.configured) {
           const r = await emailService.instance.testConnection();
-          startupDiagnostics.email.smtpVerify = r.success ? 'ok' : 'failed';
+          startupDiagnostics.email.providerVerify = r.success ? 'ok' : 'failed';
         } else {
-          startupDiagnostics.email.smtpVerify = 'skipped';
+          startupDiagnostics.email.providerVerify = 'skipped';
         }
       } catch {
-        startupDiagnostics.email.smtpVerify = 'failed';
+        startupDiagnostics.email.providerVerify = 'failed';
       }
 
       try {
@@ -392,7 +392,7 @@ const startServer = async (): Promise<void> => {
         process.env.LOG_VERBOSE === 'true';
       if (verbose) {
         console.log(
-          `Services: email SMTP @ startup=${startupDiagnostics.email.smtpVerify} · Google Drive ${startupDiagnostics.googleDrive.ready ? 'ready' : 'not ready'}`
+          `Services: email provider @ startup=${startupDiagnostics.email.providerVerify} · Google Drive ${startupDiagnostics.googleDrive.ready ? 'ready' : 'not ready'}`
         );
       }
     });

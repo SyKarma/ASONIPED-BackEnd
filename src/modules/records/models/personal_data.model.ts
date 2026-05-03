@@ -4,7 +4,8 @@ export interface PersonalData {
   id?: number;
   record_id: number;
   full_name: string;
-  pcd_name: 'fisica' | 'visual' | 'auditiva' | 'psicosocial' | 'cognitiva' | 'intelectual' | 'multiple';
+  /** Comma-separated disability type codes (e.g. `fisica,visual`). */
+  pcd_name: string;
   cedula: string;
   gender?: 'male' | 'female' | 'other';
   birth_date?: Date;
@@ -17,12 +18,15 @@ export interface PersonalData {
   mother_name?: string;
   mother_cedula?: string;
   mother_phone?: string;
+  mother_occupation?: string;
   father_name?: string;
   father_cedula?: string;
   father_phone?: string;
+  father_occupation?: string;
   legal_guardian_name?: string;
   legal_guardian_cedula?: string;
   legal_guardian_phone?: string;
+  legal_guardian_occupation?: string;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -31,8 +35,8 @@ export interface PersonalData {
 export const createPersonalData = async (data: PersonalData): Promise<void> => {
   await db.query(
     `INSERT INTO personal_data 
-      (record_id, full_name, pcd_name, cedula, gender, birth_date, birth_place, address, province, canton, district, phone, mother_name, mother_cedula, mother_phone, father_name, father_cedula, father_phone, legal_guardian_name, legal_guardian_cedula, legal_guardian_phone) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (record_id, full_name, pcd_name, cedula, gender, birth_date, birth_place, address, province, canton, district, phone, mother_name, mother_cedula, mother_phone, mother_occupation, father_name, father_cedula, father_phone, father_occupation, legal_guardian_name, legal_guardian_cedula, legal_guardian_phone, legal_guardian_occupation) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.record_id,
       data.full_name,
@@ -49,12 +53,15 @@ export const createPersonalData = async (data: PersonalData): Promise<void> => {
       data.mother_name,
       data.mother_cedula,
       data.mother_phone,
+      data.mother_occupation,
       data.father_name,
       data.father_cedula,
       data.father_phone,
+      data.father_occupation,
       data.legal_guardian_name,
       data.legal_guardian_cedula,
-      data.legal_guardian_phone
+      data.legal_guardian_phone,
+      data.legal_guardian_occupation
     ]
   );
 };

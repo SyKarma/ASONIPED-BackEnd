@@ -108,8 +108,9 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
       `SELECT r.*, 
               pd.id as pd_id, pd.full_name, pd.cedula, pd.pcd_name, pd.gender, 
               pd.birth_date, pd.birth_place, pd.address, pd.province, pd.canton, pd.district, pd.phone,
-              pd.mother_name, pd.mother_cedula, pd.mother_phone, pd.father_name, pd.father_cedula, pd.father_phone,
-              pd.legal_guardian_name, pd.legal_guardian_cedula, pd.legal_guardian_phone,
+              pd.mother_name, pd.mother_cedula, pd.mother_phone, pd.mother_occupation,
+              pd.father_name, pd.father_cedula, pd.father_phone, pd.father_occupation,
+              pd.legal_guardian_name, pd.legal_guardian_cedula, pd.legal_guardian_phone, pd.legal_guardian_occupation,
               pd.created_at as pd_created_at, pd.updated_at as pd_updated_at,
               u.username as creator_username, u.full_name as creator_full_name
        FROM records r 
@@ -145,12 +146,15 @@ export const getRecordWithDetails = async (id: number): Promise<RecordWithDetail
         mother_name: row.mother_name,
         mother_cedula: row.mother_cedula,
         mother_phone: row.mother_phone,
+        mother_occupation: row.mother_occupation,
         father_name: row.father_name,
         father_cedula: row.father_cedula,
         father_phone: row.father_phone,
+        father_occupation: row.father_occupation,
         legal_guardian_name: row.legal_guardian_name,
         legal_guardian_cedula: row.legal_guardian_cedula,
         legal_guardian_phone: row.legal_guardian_phone,
+        legal_guardian_occupation: row.legal_guardian_occupation,
         created_at: row.pd_created_at,
         updated_at: row.pd_updated_at
       };
@@ -545,8 +549,9 @@ export const updatePhase1Data = async (id: number, personalData: any): Promise<v
       UPDATE personal_data 
       SET full_name = ?, pcd_name = ?, cedula = ?, gender = ?, birth_date = ?, 
           birth_place = ?, address = ?, province = ?, canton = ?, district = ?,
-          mother_name = ?, mother_cedula = ?, father_name = ?, father_cedula = ?,
-          legal_guardian_name = ?, legal_guardian_cedula = ?
+          phone = ?, mother_name = ?, mother_cedula = ?, mother_phone = ?, mother_occupation = ?,
+          father_name = ?, father_cedula = ?, father_phone = ?, father_occupation = ?,
+          legal_guardian_name = ?, legal_guardian_cedula = ?, legal_guardian_phone = ?, legal_guardian_occupation = ?
       WHERE record_id = ?
     `, [
       personalData.full_name,
@@ -559,12 +564,19 @@ export const updatePhase1Data = async (id: number, personalData: any): Promise<v
       personalData.province,
       personalData.canton,
       personalData.district,
+      personalData.phone,
       personalData.mother_name,
       personalData.mother_cedula,
+      personalData.mother_phone,
+      personalData.mother_occupation,
       personalData.father_name,
       personalData.father_cedula,
+      personalData.father_phone,
+      personalData.father_occupation,
       personalData.legal_guardian_name,
       personalData.legal_guardian_cedula,
+      personalData.legal_guardian_phone,
+      personalData.legal_guardian_occupation,
       id
     ]) as [any, any];
 

@@ -118,6 +118,23 @@ export const deleteUser = async (id: number): Promise<void> => {
   await db.query('DELETE FROM users WHERE id = ?', [id]);
 };
 
+/**
+ * Delete a user and dependent rows that commonly block deletion via FK constraints.
+ * This is used for "registration rollback" when verification email cannot be sent.
+ */
+export const deleteUserCascade = async (userId: number): Promise<void> => {
+  // Remove role assignments first (common FK blocker)
+  await removeAllUserRoles(userId);
+
+  // Remove profiles (if the table exists / has FK to users)
+  await db.query('DELETE FROM user_profiles WHERE user_id = ?', [userId]).catch(() => {
+    // ignore if table doesn't exist in a given environment
+  });
+
+  // Finally remove the user
+  await deleteUser(userId);
+};
+
 // Verify password
 export const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
   return await bcrypt.compare(password, hash);

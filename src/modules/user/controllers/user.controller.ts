@@ -12,49 +12,65 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
   try {
     const { username, email, password, full_name, phone, roles } = req.body;
 
-    // Basic validations
+    // Validaciones básicas
     if (!username || !email || !password || !full_name) {
-      res.status(400).json({ error: 'All required fields are mandatory' });
+      res.status(400).json({ error: 'Todos los campos requeridos son obligatorios.' });
       return;
     }
-    // Validaciones personalizadas
-    
-    // Validar que el nombre de usuario solo contenga letras y tenga máximo 15 caracteres
-    if (!/^[A-Za-z]{1,15}$/.test(username)) {
-      res.status(400).json({ error: 'El usuario solo debe contener letras y máximo 15 caracteres.' });
+    // Validaciones (keep in sync with frontend + UserManagement)
+
+    // username: letters + numbers, max 20
+    if (!/^[A-Za-z0-9]{1,20}$/.test(username)) {
+      res.status(400).json({ error: 'El usuario solo debe contener letras y números y máximo 20 caracteres.' });
       return;
     }
-    // Validar formato de correo electrónico
+
+    // email: max 50 + format
+    if (String(email).length > 50) {
+      res.status(400).json({ error: 'El correo electrónico debe tener máximo 50 caracteres.' });
+      return;
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       res.status(400).json({ error: 'Debe ingresar un correo electrónico válido.' });
       return;
     }
-    // Validar que el nombre completo tenga al menos dos palabras
-    if (!/^([A-Za-zÁÉÍÓÚáéíóúÑñ]+(\s+|$)){2,}$/.test(full_name.trim())) {
+
+    // full name: max 60 + at least 2 words
+    if (String(full_name).length > 60) {
+      res.status(400).json({ error: 'El nombre completo debe tener máximo 60 caracteres.' });
+      return;
+    }
+    if (!/^([A-Za-zÁÉÍÓÚáéíóúÑñ]+(\s+|$)){2,}$/.test(String(full_name).trim())) {
       res.status(400).json({ error: 'Debe ingresar un nombre completo válido (al menos dos palabras).' });
       return;
     }
-    // Validar que el teléfono tenga exactamente 8 dígitos
-    if (!/^[0-9]{8}$/.test(phone)) {
+
+    // phone: exactly 8 digits (no dash)
+    if (!/^[0-9]{8}$/.test(String(phone ?? ''))) {
       res.status(400).json({ error: 'El teléfono debe tener exactamente 8 dígitos.' });
       return;
     }
-    // Validar que el teléfono no comience con 0 o 1
-    if (!/^[A-Za-z0-9]{6,20}$/.test(password)) {
-      res.status(400).json({ error: 'La contraseña debe tener mínimo 6 caracteres y máximo 20 caracteres y solo letras y números.' });
-      return;
-    }
+
+    // password: min 6, max 30
+    if (typeof password !== 'string' || password.length < 6) {
+      res.status(400).json({ error: 'La contraseña debe tener mínimo 6 caracteres.' });
+      return;
+    }
+    if (password.length > 30) {
+      res.status(400).json({ error: 'La contraseña debe tener máximo 30 caracteres.' });
+      return;
+    }
 
     // Check if user already exists
     const existingUser = await UserModel.getUserByUsername(username);
     if (existingUser) {
-      res.status(400).json({ error: 'Username already exists' });
+      res.status(400).json({ error: 'El usuario ya está registrado.' });
       return;
     }
 
     const existingEmail = await UserModel.getUserByEmail(email);
     if (existingEmail) {
-      res.status(400).json({ error: 'Email is already registered' });
+      res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
       return;
     }
 
@@ -125,7 +141,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       
       // Delete the user since we cannot send verification email
       try {
-        await UserModel.deleteUser(userId);
+        await UserModel.deleteUserCascade(userId);
         console.log(`⚠️ User ${username} deleted due to email service failure`);
       } catch (deleteError) {
         console.error('❌ Error deleting user after email failure:', deleteError);
@@ -133,7 +149,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       
       // Return error to user
       res.status(500).json({ 
-        error: 'Error sending verification email. Please contact support.',
+        error: 'Error al enviar el correo de verificación. Por favor, contacta al soporte.',
         details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
       });
       return;
@@ -151,7 +167,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     });
   } catch (err) {
     console.error('Error registering user:', err);
-    res.status(500).json({ error: 'Error registering user' });
+    res.status(500).json({ error: 'Error al registrar el usuario.' });
   }
 };
 
@@ -207,7 +223,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      res.status(400).json({ error: 'Username and password are required' });
+      res.status(400).json({ error: 'El usuario y la contraseña son obligatorios.' });
       return;
     }
 
@@ -218,27 +234,27 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (!user) {
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Credenciales incorrectas.' });
       return;
     }
 
     // Verify password
     const isValidPassword = await UserModel.verifyPassword(password, user.password_hash!);
     if (!isValidPassword) {
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Credenciales incorrectas.' });
       return;
     }
 
     // Check if user is active
     if (user.status !== 'active') {
-      res.status(401).json({ error: 'Inactive account' });
+      res.status(401).json({ error: 'La cuenta está inactiva.' });
       return;
     }
 
     // Check if email is verified
     if (!user.email_verified) {
       res.status(401).json({ 
-        error: 'Please verify your email before logging in. Check your inbox for the verification link.' 
+        error: 'Por favor, verifica tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada para el enlace de verificación.' 
       });
       return;
     }
@@ -273,7 +289,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err) {
     console.error('Error during login:', err);
-    res.status(500).json({ error: 'Error during login' });
+    res.status(500).json({ error: 'Error al iniciar sesión.' });
   }
 };
 
@@ -307,10 +323,10 @@ export const logoutUser = async (req: Request, res: Response): Promise<void> => 
       }
     }
 
-    res.json({ message: 'Logout successful' });
+    res.json({ message: 'Cierre de sesión exitoso.' });
   } catch (err) {
     console.error('Error during logout:', err);
-    res.status(500).json({ error: 'Error during logout' });
+    res.status(500).json({ error: 'Error al cerrar sesión.' });
   }
 };
 
@@ -321,7 +337,7 @@ export const validateSession = async (req: Request, res: Response): Promise<void
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-      res.status(401).json({ message: 'No token provided' });
+      res.status(401).json({ message: 'No se proporcionó token.' });
       return;
     }
 
@@ -334,7 +350,7 @@ export const validateSession = async (req: Request, res: Response): Promise<void
       const userId = decoded.userId || decoded.id;
       
       if (!userId) {
-        res.status(401).json({ message: 'Invalid token: No user ID' });
+        res.status(401).json({ message: 'Token inválido: no se encontró el ID del usuario.' });
         return;
       }
 
@@ -351,11 +367,11 @@ export const validateSession = async (req: Request, res: Response): Promise<void
 
       res.json({ valid: true, userId });
     } catch (tokenError) {
-      res.status(401).json({ message: 'Invalid token' });
+      res.status(401).json({ message: 'Token inválido.' });
     }
   } catch (err) {
     console.error('Error during session validation:', err);
-    res.status(500).json({ error: 'Error during session validation' });
+    res.status(500).json({ error: 'Error al validar la sesión.' });
   }
 };
 

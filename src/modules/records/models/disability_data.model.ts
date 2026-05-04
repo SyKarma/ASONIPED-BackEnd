@@ -1,9 +1,36 @@
 import { db } from '../../../db';
 
+const DISABILITY_TYPE_CODES = new Set([
+  'fisica',
+  'visual',
+  'auditiva',
+  'psicosocial',
+  'cognitiva',
+  'intelectual',
+  'multiple'
+]);
+
+/** Accepts one code, comma-separated string, or array; returns DB string or null. */
+const normalizeDisabilityTypeForDb = (raw: unknown): string | null => {
+  const parts: string[] = [];
+  const add = (token: string) => {
+    const s = token.trim().toLowerCase();
+    if (DISABILITY_TYPE_CODES.has(s) && !parts.includes(s)) parts.push(s);
+  };
+  if (Array.isArray(raw)) {
+    for (const x of raw) {
+      if (typeof x === 'string') add(x);
+    }
+  } else if (typeof raw === 'string' && raw.trim()) {
+    for (const p of raw.split(',')) add(p);
+  }
+  return parts.length ? parts.join(',') : null;
+};
+
 export interface DisabilityData {
   id?: number;
   record_id: number;
-  disability_type: 'fisica' | 'visual' | 'auditiva' | 'psicosocial' | 'cognitiva' | 'intelectual' | 'multiple';
+  disability_type: string;
   medical_diagnosis?: string;
   insurance_type?: 'rnc' | 'independiente' | 'privado' | 'otro';
   disability_origin?: 'nacimiento' | 'accidente' | 'enfermedad';
@@ -50,6 +77,8 @@ export const createOrUpdateDisabilityData = async (recordId: number, disabilityD
       [recordId]
     ) as [any[], any];
 
+    const disabilityTypeDb = normalizeDisabilityTypeForDb(disabilityData.disability_type);
+
     if (existingRows.length > 0) {
       // Update existing disability data
       await db.query(
@@ -59,7 +88,7 @@ export const createOrUpdateDisabilityData = async (recordId: number, disabilityD
          observations = ?
          WHERE record_id = ?`,
         [
-          cleanValue(disabilityData.disability_type),
+          cleanValue(disabilityTypeDb),
           cleanValue(disabilityData.medical_diagnosis),
           cleanValue(disabilityData.insurance_type),
           cleanValue(disabilityData.disability_origin),
@@ -78,7 +107,7 @@ export const createOrUpdateDisabilityData = async (recordId: number, disabilityD
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           recordId,
-          cleanValue(disabilityData.disability_type),
+          cleanValue(disabilityTypeDb),
           cleanValue(disabilityData.medical_diagnosis),
           cleanValue(disabilityData.insurance_type),
           cleanValue(disabilityData.disability_origin),

@@ -4,7 +4,7 @@
 CREATE TABLE disability_data (
   id INT AUTO_INCREMENT PRIMARY KEY,
   record_id INT NOT NULL,
-  disability_type ENUM('fisica', 'visual', 'auditiva', 'psicosocial', 'cognitiva', 'intelectual', 'multiple'),
+  disability_type VARCHAR(191),
   medical_diagnosis TEXT,
   insurance_type ENUM('rnc', 'independiente', 'privado', 'otro'),
   disability_origin ENUM('nacimiento', 'accidente', 'enfermedad'),

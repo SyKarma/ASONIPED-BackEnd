@@ -20,7 +20,7 @@ CREATE TABLE disability_data (
 CREATE TABLE IF NOT EXISTS biomechanical_benefits (
   id INT AUTO_INCREMENT PRIMARY KEY,
   disability_data_id INT NOT NULL,
-  type ENUM('silla_ruedas', 'baston', 'andadera', 'audifono', 'baston_guia', 'otro') NOT NULL,
+  type ENUM('silla_ruedas', 'baston', 'andadera', 'audifono', 'baston_guia', 'otro', 'ninguno') NOT NULL,
   other_description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS biomechanical_benefits (
 CREATE TABLE IF NOT EXISTS permanent_limitations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   disability_data_id INT NOT NULL,
-  limitation ENUM('moverse_caminar', 'ver_lentes', 'oir_audifono', 'comunicarse_hablar', 'entender_aprender', 'relacionarse') NOT NULL,
+  limitation ENUM('moverse_caminar', 'ver_lentes', 'oir_audifono', 'comunicarse_hablar', 'entender_aprender', 'relacionarse', 'ninguno') NOT NULL,
   degree ENUM('leve', 'moderada', 'severa', 'no_se_sabe') NOT NULL,
   observations TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

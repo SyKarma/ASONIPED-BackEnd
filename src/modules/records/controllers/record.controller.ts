@@ -128,7 +128,7 @@ export const createAdminDirectRecord = async (req: Request, res: Response): Prom
     try {
       if (complete_personal_data && complete_personal_data.full_name && complete_personal_data.cedula) {
         const folderName = `${complete_personal_data.full_name} - ${complete_personal_data.cedula}`;
-        const parentFolderId = '1g8DwK78x4SOXSRo2jyqQWBCMVkonH38e'; // ASONIPED-Records-Shared folder ID
+        const parentFolderId = '16dL2mJ1RO2V_3iZs0PH016GPOVjMf4Qs'; // ASONIPED-Records-Shared folder ID
         
         
         // Initialize Google Drive service if needed
@@ -471,7 +471,7 @@ export const completeRecord = async (req: Request, res: Response): Promise<void>
       try {
         if (complete_personal_data && complete_personal_data.full_name && complete_personal_data.cedula) {
           const folderName = `${complete_personal_data.full_name} - ${complete_personal_data.cedula}`;
-          const parentFolderId = '1g8DwK78x4SOXSRo2jyqQWBCMVkonH38e'; // ASONIPED-Records-Shared folder ID
+          const parentFolderId = '16dL2mJ1RO2V_3iZs0PH016GPOVjMf4Qs'; // ASONIPED-Records-Shared folder ID
           
           
           // Check if folder already exists in the parent folder

@@ -42,14 +42,14 @@ export interface DisabilityData {
 export interface BiomechanicalBenefit {
   id?: number;
   disability_data_id: number;
-  type: 'silla_ruedas' | 'baston' | 'andadera' | 'audifono' | 'baston_guia' | 'otro';
+  type: 'silla_ruedas' | 'baston' | 'andadera' | 'audifono' | 'baston_guia' | 'otro' | 'ninguno';
   other_description?: string;
 }
 
 export interface PermanentLimitation {
   id?: number;
   disability_data_id: number;
-  limitation: 'moverse_caminar' | 'ver_lentes' | 'oir_audifono' | 'comunicarse_hablar' | 'entender_aprender' | 'relacionarse';
+  limitation: 'moverse_caminar' | 'ver_lentes' | 'oir_audifono' | 'comunicarse_hablar' | 'entender_aprender' | 'relacionarse' | 'ninguno';
   degree: 'leve' | 'moderada' | 'severa' | 'no_se_sabe';
   observations?: string;
 }

@@ -161,8 +161,8 @@ export const updateVolunteerOption = async (id: number, option: Omit<VolunteerOp
 
 // Delete a volunteer option
 export const deleteVolunteerOption = async (id: number): Promise<void> => {
-  // First, update any volunteers that reference this option to set volunteer_option_id to NULL
-  await db.query('UPDATE volunteers SET volunteer_option_id = NULL WHERE volunteer_option_id = ?', [id]);
+  // First, delete all volunteers associated with this option
+  await db.query('DELETE FROM volunteers WHERE volunteer_option_id = ?', [id]);
   // Then delete the option
   await db.query('DELETE FROM volunteer_options WHERE id = ?', [id]);
 };
